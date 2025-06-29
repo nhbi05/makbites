@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "798959788724",
+    "project_id": "mukbites-dfc31",
+    "storage_bucket": "mukbites-dfc31.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:798959788724:android:0bf607c077d23fb800ade1",
+        "android_client_info": {
+          "package_name": "com.example.makbites"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBfWnbrecUr1dyqh3Vi6jcTbKKjcWAXOP4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:798959788724:android:32fb22d5bae8692c00ade1",
+        "android_client_info": {
+          "package_name": "com.example.mukbites"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBfWnbrecUr1dyqh3Vi6jcTbKKjcWAXOP4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
