@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../screens/auth/login.dart';
+import '../screens/auth/signup_screen.dart';
 
 class HomePage extends StatelessWidget {
   @override
@@ -24,7 +26,7 @@ class HomePage extends StatelessWidget {
                     children: [
                       SizedBox(height: 40),
                       Text(
-                        'MUK BITES',
+                        'MAK BITES',
                         style: GoogleFonts.creepster(
                           fontSize: 36,
                           color: Colors.white,
@@ -69,7 +71,10 @@ class HomePage extends StatelessWidget {
                         ),
                       ),
                       onPressed: () {
-                        // TODO: Navigate to LoginPage
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => LoginScreen()),
+                        );
                       },
                       child: Text(
                         'Login',
@@ -93,7 +98,10 @@ class HomePage extends StatelessWidget {
                         backgroundColor: Colors.white,
                       ),
                       onPressed: () {
-                        // TODO: Navigate to SignUpPage
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => SignUpScreen()),
+                        );
                       },
                       child: Text(
                         'Sign up',
