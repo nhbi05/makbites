@@ -7,13 +7,11 @@ buildscript {
         classpath("com.android.tools.build:gradle:8.1.0")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.21")
         // Add Google services classpath without version (let it be managed by Gradle)
-        classpath("com.google.gms:google-services")
+        classpath("com.google.gms:google-services:4.4.2")
     }
 }
 
-plugins {
-    id("com.google.gms.google-services") version "4.4.2" apply false
-}
+
 
 // Only keep this if you absolutely need custom build directories
 val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()
@@ -28,3 +26,5 @@ subprojects {
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
+
+apply(plugin = "com.google.gms.google-services")
