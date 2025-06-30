@@ -17,17 +17,11 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for android - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return android;
       case TargetPlatform.iOS:
         return ios;
       case TargetPlatform.macOS:
@@ -46,9 +40,26 @@ class DefaultFirebaseOptions {
     }
   }
 
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyDzAJ7Af8-Ba7pJWzZ5AXzM0bna0lMVXUo',
+    appId: '1:798959788724:web:18bd16d6c8d6f10100ade1',
+    messagingSenderId: '798959788724',
+    projectId: 'mukbites-dfc31',
+    authDomain: 'mukbites-dfc31.firebaseapp.com',
+    storageBucket: 'mukbites-dfc31.firebasestorage.app',
+  );
+
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyBfWnbrecUr1dyqh3Vi6jcTbKKjcWAXOP4',
+    appId: '1:798959788724:android:0bf607c077d23fb800ade1',
+    messagingSenderId: '798959788724',
+    projectId: 'mukbites-dfc31',
+    storageBucket: 'mukbites-dfc31.firebasestorage.app',
+  );
+
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyD7baMhL6g03O1kuFNR9FkogzVOclqQzp8',
-    appId: '1:798959788724:ios:54dec190b387f86c00ade1',
+    apiKey: 'AIzaSyDzAJ7Af8-Ba7pJWzZ5AXzM0bna0lMVXUo',
+    appId: '1:798959788724:ios:9980b9b2f4e1bacd00ade1',
     messagingSenderId: '798959788724',
     projectId: 'mukbites-dfc31',
     storageBucket: 'mukbites-dfc31.firebasestorage.app',
@@ -56,8 +67,8 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyD7baMhL6g03O1kuFNR9FkogzVOclqQzp8',
-    appId: '1:798959788724:ios:54dec190b387f86c00ade1',
+    apiKey: 'AIzaSyDzAJ7Af8-Ba7pJWzZ5AXzM0bna0lMVXUo',
+    appId: '1:798959788724:macos:9980b9b2f4e1bacd00ade1',
     messagingSenderId: '798959788724',
     projectId: 'mukbites-dfc31',
     storageBucket: 'mukbites-dfc31.firebasestorage.app',
@@ -72,4 +83,5 @@ class DefaultFirebaseOptions {
     authDomain: 'mukbites-dfc31.firebaseapp.com',
     storageBucket: 'mukbites-dfc31.firebasestorage.app',
   );
-}
+
+} 
