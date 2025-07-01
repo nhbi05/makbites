@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../constants/app_colours.dart';
 import '../../constants/text_styles.dart';
+import 'add_item.dart';
 
 class MenuPage extends StatefulWidget {
   @override
@@ -8,6 +9,14 @@ class MenuPage extends StatefulWidget {
 }
 
 class _MenuPageState extends State<MenuPage> with SingleTickerProviderStateMixin {
+
+  void _showAddMenuItemDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) => AddMenuItemForm(),
+    );
+  }
+
   late TabController _tabController;
 
   final List<Map<String, dynamic>> foodItems = [
@@ -86,10 +95,9 @@ class _MenuPageState extends State<MenuPage> with SingleTickerProviderStateMixin
           bottom: 16,
           right: 16,
           child: FloatingActionButton.extended(
-            onPressed: () {
-              // Add your logic here
-            },
-            backgroundColor: Colors.orange,
+            onPressed: _showAddMenuItemDialog,
+
+            backgroundColor: AppColors.primary,
             label: Text('Add new item',style: TextStyle(color:AppColors.white),),
             icon: Icon(Icons.add,color:AppColors.white),
           ),
