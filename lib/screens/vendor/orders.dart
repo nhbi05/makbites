@@ -184,3 +184,46 @@ class _OrdersPageState extends State<OrdersPage> {
         ),
     );
   }
+  Widget _infoCard(String title, String value) {
+    return Container(
+      width: 150,
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[300],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
+          SizedBox(height: 4),
+          Text(value),
+        ],
+      ),
+    );
+  }
+
+  void _showCancelDialog(BuildContext context, int index) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text("Cancel Order"),
+        content: Text("Are you sure you want to cancel this order?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text("No"),
+          ),
+          TextButton(
+            onPressed: () {
+              cancelOrder(index);
+              Navigator.pop(ctx);
+            },
+            child: Text("Yes"),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
