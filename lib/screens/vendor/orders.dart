@@ -68,3 +68,22 @@ class _OrdersPageState extends State<OrdersPage> {
       orders.removeAt(index);
     });
   }
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+        appBar: AppBar(
+        backgroundColor: Colors.red,
+        title: Text(
+        "Muk Bites",
+        style: TextStyle(
+        fontWeight: FontWeight.bold,
+        fontSize: 30,
+        color: Colors.white,
+    ),
+    ),
+    // Uncomment if you want to enable back navigation
+    // leading: IconButton(
+    //   icon: Icon(Icons.arrow_back),
+    //   onPressed: () => Navigator.pop(context),
+    // ),
+    ),
