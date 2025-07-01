@@ -172,13 +172,13 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 void _goHome(String role) {
   switch (role) {
-    case 'Customer':
+    case 'customer':
       Navigator.pushReplacementNamed(context, '/customer-home');
       break;
-    case 'Vendor':
+    case 'vendor':
       Navigator.pushReplacementNamed(context, '/vendor-home');
       break;
-    case 'Delivery':
+    case 'delivery':
       Navigator.pushReplacementNamed(context, '/delivery-home');
       break;
     default:
@@ -200,6 +200,7 @@ Future<void> _handleSignIn() async {
           .get();
 
       final role = snapshot.data()?['role'] ?? 'Customer';
+      print('Attempting to navigate to: $role');  
       _goHome(role);
 
     } on FirebaseAuthException catch (e) {

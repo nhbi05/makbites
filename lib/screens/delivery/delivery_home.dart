@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../constants/app_colours.dart';
 import '../../constants/text_styles.dart';
+import '../../config/routes.dart';
 
 class DeliveryHomeScreen extends StatefulWidget {
   @override
@@ -16,9 +17,7 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
   // Mock data - replace with actual data from your backend
   Map<String, dynamic> _todayStats = {
     'deliveries': 12,
-    'earnings': 48000,
-    'distance': 45,
-    'rating': 4.9,
+    'distance': 45
   };
 
   List<Map<String, dynamic>> _availableDeliveries = [
@@ -222,13 +221,10 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
         Navigator.pushNamed(context, '/deliveries');
         break;
       case 2:
-        // Navigate to earnings screen
-        Navigator.pushNamed(context, '/earnings');
-        break;
-      case 3:
         // Navigate to profile screen
-        Navigator.pushNamed(context, '/profile');
-        break;
+      case 3:
+      Navigator.pushNamed(context, AppRoutes.deliveryProfile); 
+      break;
     }
   }
 
@@ -404,49 +400,31 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
   }
 
   Widget _buildTodayStats() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Today\'s Performance', style: AppTextStyles.subHeader),
-        SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(child: _buildStatCard(
-              'Deliveries', 
-              '${_todayStats['deliveries']}', 
-              Icons.local_shipping, 
-              AppColors.success
-            )),
-            SizedBox(width: 12),
-            Expanded(child: _buildStatCard(
-              'Earnings', 
-              'UGX ${(_todayStats['earnings'] / 1000).toStringAsFixed(0)}K', 
-              Icons.account_balance_wallet, 
-              AppColors.warning
-            )),
-          ],
-        ),
-        SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(child: _buildStatCard(
-              'Distance', 
-              '${_todayStats['distance']} km', 
-              Icons.route, 
-              AppColors.primary
-            )),
-            SizedBox(width: 12),
-            Expanded(child: _buildStatCard(
-              'Rating', 
-              '${_todayStats['rating']}', 
-              Icons.star, 
-              AppColors.warning
-            )),
-          ],
-        ),
-      ],
-    );
-  }
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text('Today\'s Performance', style: AppTextStyles.subHeader),
+      SizedBox(height: 16),
+      Row(
+        children: [
+          Expanded(child: _buildStatCard(
+            'Deliveries', 
+            '${_todayStats['deliveries']}', 
+            Icons.local_shipping, 
+            AppColors.success
+          )),
+          SizedBox(width: 12),
+          Expanded(child: _buildStatCard(
+            'Distance', 
+            '${_todayStats['distance']} km', 
+            Icons.route, 
+            AppColors.primary
+          )),
+        ],
+      ),
+    ],
+  );
+}
 
   Widget _buildQuickActions() {
     return Column(
@@ -471,10 +449,10 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
             )),
             SizedBox(width: 12),
             Expanded(child: _buildQuickAction(
-              'Earnings\nHistory',
+              'Delivery\nHistory',
               Icons.history,
               AppColors.success,
-              () => Navigator.pushNamed(context, '/earnings'),
+              () => Navigator.pushNamed(context, '/deliveries'),
             )),
           ],
         ),
@@ -859,10 +837,6 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
         BottomNavigationBarItem(
           icon: Icon(Icons.local_shipping),
           label: 'Deliveries',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.account_balance_wallet),
-          label: 'Earnings',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.person),

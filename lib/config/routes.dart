@@ -6,6 +6,7 @@ import '../screens/auth/signup_screen.dart';
 import '../screens/customer/customer_home.dart';
 import '../screens/vendor/vendor_home.dart';
 import '../screens/delivery/delivery_home.dart';
+import '../screens/delivery/profiles.dart';
 
 class AppRoutes {
   // Route names
@@ -16,6 +17,7 @@ class AppRoutes {
   static const String customerHome = '/customer-home';
   static const String vendorHome = '/vendor-home';
   static const String deliveryHome = '/delivery-home';
+   static const String deliveryProfile = '/profiles';
 
   // Route map
   static Map<String, WidgetBuilder> get routes {
@@ -27,6 +29,8 @@ class AppRoutes {
       customerHome: (context) =>  CustomerHomeScreen(),
       vendorHome: (context) =>  VendorHomeScreen(),
       deliveryHome: (context) =>  DeliveryHomeScreen(),
+      deliveryProfile: (context) =>  ProfileScreen(),
+
     };
   }
 
