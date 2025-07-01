@@ -49,3 +49,17 @@ class _OrdersPageState extends State<OrdersPage> {
       price: 2500,
     ),
   ];
+  int get totalOrders => orders.length;
+  int get completedOrders => orders.where((o) => o.status == "Completed").length;
+  int get cancelledOrders => 1; // You can improve this later
+  int get totalRevenue => orders.fold(0, (sum, o) => sum + o.price);
+
+  void updateOrderStatus(int index) {
+    setState(() {
+      if (orders[index].status == "New" || orders[index].status == "Pending") {
+        orders[index].status = "Start Preparing";
+      } else if (orders[index].status == "Start Preparing") {
+        orders[index].status = "Completed";
+      }
+    });
+  }
