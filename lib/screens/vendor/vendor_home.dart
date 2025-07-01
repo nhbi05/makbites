@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../constants/app_colours.dart';
 import '../../constants/text_styles.dart';
 import 'menu_page.dart';
+import 'analytics.dart';
 
 class VendorHomePage extends StatefulWidget {
   @override
@@ -15,6 +17,14 @@ class _VendorHomePageState extends State<VendorHomePage> {
   @override
   void initState() {
     super.initState();
+
+    // Set status bar style to match revenue container
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+      statusBarColor: Colors.amber[100],
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+    ));
+
     _pages = [
       _buildDashboard(),
       Placeholder(), // Replace with OrdersPage()
@@ -26,24 +36,25 @@ class _VendorHomePageState extends State<VendorHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       appBar: AppBar(
         title: Text(
-          'MuK Bites Vendor',
-          style: TextStyle(color: Colors.white),
+          'MukBites Vendor',
+          style: AppTextStyles.header.copyWith(color: AppColors.white),
         ),
-        backgroundColor: Colors.red[400],
+        backgroundColor: AppColors.primary,
+        elevation: 0,
         actions: [
-          Icon(Icons.notifications, color: Colors.white),
+          Icon(Icons.notifications, color: AppColors.white),
           SizedBox(width: 10),
-          Icon(Icons.settings, color: Colors.white),
+          Icon(Icons.settings, color: AppColors.white),
           SizedBox(width: 10),
         ],
       ),
       body: _pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        selectedItemColor: Colors.red,
+        selectedItemColor: AppColors.primary,
         unselectedItemColor: Colors.grey,
         onTap: (index) {
           setState(() {
@@ -62,38 +73,34 @@ class _VendorHomePageState extends State<VendorHomePage> {
   }
 
   Widget _buildDashboard() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _headerSection(),
-        _metricsGrid(),
-        _quickActions(),
-        Expanded(
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _sectionTitle("Recent Orders"),
-                _orderCard("#1234", "Matooke and Rice", "John Doe", "Preparing"),
-                _sectionTitle("Popular Orders"),
-                _orderCard("#1221", "Chapati and Beans", "Jane Smith", "Completed"),
-                _orderCard("#1222", "Chicken Pilau", "Alex Kim", "Completed"),
-              ],
-            ),
-          ),
-        ),
-      ],
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _headerSection(),
+          _metricsGrid(),
+          _quickActions(),
+
+          _sectionTitle("Recent Orders"),
+          _orderCard("#1234", "Matooke and Rice", "John Doe", "Preparing"),
+          _sectionTitle("Popular Orders"),
+          _orderCard("#1221", "Chapati and Beans", "Jane Smith", "Completed"),
+          _orderCard("#1222", "Chicken Pilau", "Alex Kim", "Completed"),
+
+
+        ],
+      ),
     );
   }
 
   Widget _headerSection() {
     return Container(
       width: double.infinity,
-      color: Colors.red[300],
+      color: AppColors.primary,
       padding: EdgeInsets.all(16),
       child: Text(
         "Good Morning, Chef!\nReady to serve delicious meals today?",
-        style: TextStyle(color: Colors.white, fontSize: 16),
+        style: AppTextStyles.body.copyWith(color: AppColors.white),
       ),
     );
   }
@@ -109,9 +116,9 @@ class _VendorHomePageState extends State<VendorHomePage> {
         childAspectRatio: 2.5,
         physics: NeverScrollableScrollPhysics(),
         children: [
-          _metricCard(Icons.shopping_cart, "23", "Today's Orders", Colors.green),
-          _metricCard(Icons.attach_money, "UGX 200K", "Revenue", Colors.orange),
-          _metricCard(Icons.timelapse, "5", "Pending Orders", Colors.pink),
+          _metricCard(Icons.shopping_cart, "23", "Today's Orders", AppColors.success),
+          _metricCard(Icons.attach_money, "UGX 200K", "Revenue", Colors.amber),
+          _metricCard(Icons.timelapse, "5", "Pending Orders", AppColors.primary),
           _metricCard(Icons.star, "4.8", "Rating", Colors.amber),
         ],
       ),
@@ -132,8 +139,8 @@ class _VendorHomePageState extends State<VendorHomePage> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(value, style: TextStyle(fontWeight: FontWeight.bold)),
-              Text(label, style: TextStyle(fontSize: 12)),
+              Text(value, style: AppTextStyles.subHeader),
+              Text(label, style: AppTextStyles.body.copyWith(fontSize: 12)),
             ],
           )
         ],
@@ -147,9 +154,24 @@ class _VendorHomePageState extends State<VendorHomePage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          //_quickAction(Icons.add, "Add New Item", Colors.green),
-          _quickAction(Icons.edit, "Manage Menu", Colors.red),
-          _quickAction(Icons.bar_chart, "View Analytics", Colors.orange),
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _currentIndex = 2; // Navigate to MenuPage
+              });
+            },
+            child: _quickAction(Icons.edit, "Manage Menu", AppColors.primary),
+          ),
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => AnalyticsPage()),
+              );
+            },
+            child: _quickAction(Icons.bar_chart, "View Analytics", Colors.amber),
+          ),
+
         ],
       ),
     );
@@ -163,7 +185,7 @@ class _VendorHomePageState extends State<VendorHomePage> {
           child: Icon(icon, color: color),
         ),
         SizedBox(height: 6),
-        Text(label, style: TextStyle(fontSize: 12)),
+        Text(label, style: AppTextStyles.body.copyWith(fontSize: 12)),
       ],
     );
   }
@@ -171,7 +193,7 @@ class _VendorHomePageState extends State<VendorHomePage> {
   Widget _sectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.all(12.0),
-      child: Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+      child: Text(title, style: AppTextStyles.subHeader),
     );
   }
 
@@ -180,8 +202,8 @@ class _VendorHomePageState extends State<VendorHomePage> {
       margin: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: ListTile(
         leading: Icon(Icons.fastfood),
-        title: Text(meal),
-        subtitle: Text(customer),
+        title: Text(meal, style: AppTextStyles.body),
+        subtitle: Text(customer, style: AppTextStyles.body.copyWith(fontSize: 14)),
         trailing: Chip(
           label: Text(status),
           backgroundColor:

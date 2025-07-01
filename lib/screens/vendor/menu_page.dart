@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../constants/app_colours.dart';
+import '../../constants/text_styles.dart';
 
 class MenuPage extends StatefulWidget {
   @override
@@ -57,12 +59,12 @@ class _MenuPageState extends State<MenuPage> with SingleTickerProviderStateMixin
         Column(
           children: [
             Container(
-              color: Colors.white,
+              color: AppColors.white,
               child: TabBar(
                 controller: _tabController,
-                labelColor: Colors.red,
+                labelColor: AppColors.primary,
                 unselectedLabelColor: Colors.grey,
-                indicatorColor: Colors.red,
+                indicatorColor: AppColors.primary,
                 tabs: const [
                   Tab(text: 'Foods'),
                   Tab(text: 'Drinks'),
@@ -88,8 +90,8 @@ class _MenuPageState extends State<MenuPage> with SingleTickerProviderStateMixin
               // Add your logic here
             },
             backgroundColor: Colors.orange,
-            label: Text('Add new item',style: TextStyle(color:Colors.white),),
-            icon: Icon(Icons.add,color:Colors.white),
+            label: Text('Add new item',style: TextStyle(color:AppColors.white),),
+            icon: Icon(Icons.add,color:AppColors.white),
           ),
         ),
       ],
@@ -98,7 +100,7 @@ class _MenuPageState extends State<MenuPage> with SingleTickerProviderStateMixin
 
   Widget _buildMenuList(List<Map<String, dynamic>> items) {
     return Container(
-      color: Colors.white,
+      color: AppColors.white,
       padding: EdgeInsets.all(12),
       child: ListView.builder(
         itemCount: items.length,
@@ -121,8 +123,8 @@ class _MenuPageState extends State<MenuPage> with SingleTickerProviderStateMixin
           children: [
             CircleAvatar(
               radius: 30,
-              backgroundColor: Colors.red.withOpacity(0.1),
-              child: Icon(iconData, color: Colors.red, size: 30),
+              backgroundColor: AppColors.primary.withOpacity(0.1),
+              child: Icon(iconData, color: AppColors.primary, size: 30),
             ),
             SizedBox(width: 10),
             Expanded(
@@ -139,7 +141,7 @@ class _MenuPageState extends State<MenuPage> with SingleTickerProviderStateMixin
                       color: Colors.black54,
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Text(item['status'], style: TextStyle(color: Colors.white, fontSize: 12)),
+                    child: Text(item['status'], style: TextStyle(color: AppColors.white, fontSize: 12)),
                   ),
                 ],
               ),
@@ -149,8 +151,8 @@ class _MenuPageState extends State<MenuPage> with SingleTickerProviderStateMixin
                 ElevatedButton(
                   onPressed: () {},
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.black,
+                    backgroundColor: AppColors.white,
+                    foregroundColor: AppColors.black,
                     side: BorderSide(color: Colors.grey),
                   ),
                   child: Text("Mark Available"),
@@ -158,8 +160,8 @@ class _MenuPageState extends State<MenuPage> with SingleTickerProviderStateMixin
                 SizedBox(height: 6),
                 ElevatedButton(
                   onPressed: () {},
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  child: Text("Remove", style: TextStyle(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                  child: Text("Remove", style: TextStyle(color: AppColors.white)),
                 ),
               ],
             ),
