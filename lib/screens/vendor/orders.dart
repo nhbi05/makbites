@@ -87,3 +87,18 @@ class _OrdersPageState extends State<OrdersPage> {
     //   onPressed: () => Navigator.pop(context),
     // ),
     ),
+        body: Padding(
+        padding: const EdgeInsets.all(12.0),
+    child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+    Text("Orders details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+    Text("Track and manage all your restaurant orders here!\n"),
+    Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+    _infoCard("Total orders", totalOrders.toString()),
+    _infoCard("Completed", completedOrders.toString()),
+    ],
+    ),
+
