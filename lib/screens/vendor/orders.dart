@@ -63,3 +63,8 @@ class _OrdersPageState extends State<OrdersPage> {
       }
     });
   }
+  void cancelOrder(int index) {
+    setState(() {
+      orders.removeAt(index);
+    });
+  }
