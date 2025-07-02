@@ -79,7 +79,7 @@ class _VendorHomePageState extends State<VendorHomePage> {
         children: [
           _headerSection(),
           _metricsGrid(),
-          _quickActions(),
+          //_quickActions(),
 
           _sectionTitle("Recent Orders"),
           _orderCard("#1234", "Matooke and Rice", "John Doe", "Preparing"),
@@ -148,34 +148,34 @@ class _VendorHomePageState extends State<VendorHomePage> {
     );
   }
 
-  Widget _quickActions() {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          GestureDetector(
-            onTap: () {
-              setState(() {
-                _currentIndex = 2; // Navigate to MenuPage
-              });
-            },
-            child: _quickAction(Icons.edit, "Manage Menu", AppColors.primary),
-          ),
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => AnalyticsPage()),
-              );
-            },
-            child: _quickAction(Icons.bar_chart, "View Analytics", Colors.amber),
-          ),
-
-        ],
-      ),
-    );
-  }
+  // Widget _quickActions() {
+  //   return Padding(
+  //     padding: const EdgeInsets.all(12),
+  //     child: Row(
+  //       mainAxisAlignment: MainAxisAlignment.spaceAround,
+  //       children: [
+  //         GestureDetector(
+  //           onTap: () {
+  //             setState(() {
+  //               _currentIndex = 2; // Navigate to MenuPage
+  //             });
+  //           },
+  //           child: _quickAction(Icons.edit, "Manage Menu", AppColors.primary),
+  //         ),
+  //         GestureDetector(
+  //           onTap: () {
+  //             Navigator.push(
+  //               context,
+  //               MaterialPageRoute(builder: (context) => AnalyticsPage()),
+  //             );
+  //           },
+  //           child: _quickAction(Icons.bar_chart, "View Analytics", Colors.amber),
+  //         ),
+  //
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget _quickAction(IconData icon, String label, Color color) {
     return Column(
