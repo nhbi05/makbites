@@ -5,7 +5,6 @@ import '../screens/auth/login.dart';
 import '../screens/auth/signup_screen.dart';
 import '../screens/customer/customer_home.dart';
 import '../screens/customer/weekly_schedule_setup.dart';
-import '../screens/customer/order_preferences_screen.dart';
 
 class AppRoutes {
   // Route names
@@ -15,7 +14,6 @@ class AppRoutes {
   static const String signup = '/signup';
   static const String customerHome = '/customer-home';
   static const String weeklyScheduleSetup = '/weekly-schedule-setup';
-  static const String orderPreferences = '/order-preferences';
 
   // Route map
   static Map<String, WidgetBuilder> get routes {
@@ -26,7 +24,6 @@ class AppRoutes {
       signup: (context) =>  SignUpScreen(),
       customerHome: (context) =>  CustomerHomeScreen(),
       weeklyScheduleSetup: (context) => WeeklyScheduleSetupScreen(),
-      orderPreferences: (context) => OrderPreferencesScreen(),
     };
   }
 

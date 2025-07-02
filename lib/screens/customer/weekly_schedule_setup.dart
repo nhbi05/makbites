@@ -6,6 +6,7 @@ import '../automation/add_event_form.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/user_event.dart';
+import 'place_order_screen.dart';
 
 class WeeklyScheduleSetupScreen extends StatefulWidget {
   @override
@@ -291,6 +292,17 @@ class _WeeklyScheduleSetupScreenState extends State<WeeklyScheduleSetupScreen> {
                   ),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => PlaceOrderScreen()),
+          );
+        },
+        icon: Icon(Icons.shopping_cart),
+        label: Text('Order Now'),
+        backgroundColor: Theme.of(context).primaryColor,
       ),
     );
   }
