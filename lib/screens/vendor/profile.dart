@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'edit_profile_page.dart';
+//import 'edit_profile_page.dart';
 
 
 class ProfilePage extends StatefulWidget {
@@ -129,3 +129,27 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
+  Widget _infoColumn(String label, String value) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.only(right: 12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(value),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
