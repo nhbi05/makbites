@@ -1,105 +1,148 @@
 import 'package:flutter/material.dart';
 import '../../constants/app_colours.dart';
 import '../../constants/text_styles.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../models/user_event.dart';
+import 'package:intl/intl.dart';
 
-class CustomerHomeScreen extends StatelessWidget {
+class CustomerHomeScreen extends StatefulWidget {
+  @override
+  _CustomerHomeScreenState createState() => _CustomerHomeScreenState();
+}
+
+class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('MakBites'),
-        backgroundColor: AppColors.primary,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.notifications_outlined),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: Icon(Icons.shopping_cart_outlined),
-            onPressed: () {},
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Welcome Section
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.secondary,
-                borderRadius: BorderRadius.circular(16),
+    return FutureBuilder<List<UserEvent>>(
+      future: _fetchTodayEvents(),
+      builder: (context, snapshot) {
+        final today = DateTime.now();
+        final events = snapshot.data ?? [];
+        final mealTimes = _findOptimalMealTimes(events, today);
+        return Scaffold(
+          appBar: AppBar(
+            title: Text('MakBites'),
+            backgroundColor: AppColors.primary,
+            actions: [
+              IconButton(
+                icon: Icon(Icons.notifications_outlined),
+                onPressed: () {},
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Good Morning!',
-                    style: AppTextStyles.subHeader,
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'What would you like to eat today?',
-                    style: AppTextStyles.body,
-                  ),
-                ],
+              IconButton(
+                icon: Icon(Icons.shopping_cart_outlined),
+                onPressed: () {},
               ),
-            ),
-            SizedBox(height: 24),
-            
-            // Quick Actions
-            Text(
-              'Quick Actions',
-              style: AppTextStyles.subHeader,
-            ),
-            SizedBox(height: 16),
-            Row(
+            ],
+          ),
+          body: SingleChildScrollView(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: _buildQuickAction('Schedule\nMeals', Icons.schedule, AppColors.primary)),
-                SizedBox(width: 12),
-                Expanded(child: _buildQuickAction('Browse\nRestaurants', Icons.restaurant, AppColors.success)),
-                SizedBox(width: 12),
-                Expanded(child: _buildQuickAction('Order\nHistory', Icons.history, AppColors.warning)),
+                // Optimal Meal Times Section
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(16),
+                  margin: EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Today\'s Optimal Meal Times', style: AppTextStyles.subHeader),
+                      SizedBox(height: 8),
+                      _buildMealTimeRow('Breakfast', mealTimes['breakfast']),
+                      _buildMealTimeRow('Lunch', mealTimes['lunch']),
+                      _buildMealTimeRow('Supper', mealTimes['supper']),
+                    ],
+                  ),
+                ),
+                // Welcome Section
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondary,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Good Morning!',
+                        style: AppTextStyles.subHeader,
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'What would you like to eat today?',
+                        style: AppTextStyles.body,
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 24),
+                
+                // Quick Actions
+                Text(
+                  'Quick Actions',
+                  style: AppTextStyles.subHeader,
+                ),
+                SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(child: _buildQuickAction('Schedule\nMeals', Icons.schedule, AppColors.primary)),
+                    SizedBox(width: 12),
+                    Expanded(child: _buildQuickAction('Browse\nRestaurants', Icons.restaurant, AppColors.success)),
+                    SizedBox(width: 12),
+                    Expanded(child: _buildQuickAction('Order\nHistory', Icons.history, AppColors.warning)),
+                  ],
+                ),
+                SizedBox(height: 24),
+                
+                // Popular Restaurants
+                Text(
+                  'Popular Near Campus',
+                  style: AppTextStyles.subHeader,
+                ),
+                SizedBox(height: 16),
+                _buildRestaurantCard('Campus Grill', 'Burgers • Fries • Drinks', 4.5, '15-20 min'),
+                SizedBox(height: 12),
+                _buildRestaurantCard('Healthy Bites', 'Salads • Wraps • Smoothies', 4.8, '10-15 min'),
+                SizedBox(height: 12),
+                _buildRestaurantCard('Pizza Corner', 'Pizza • Pasta • Italian', 4.3, '20-25 min'),
+                SizedBox(height: 24),
+                
+                // Recent Orders Section
+                Text(
+                  'Your Recent Orders',
+                  style: AppTextStyles.subHeader,
+                ),
+                SizedBox(height: 16),
+                _buildRecentOrderCard('Beef Burger Combo', 'Campus Grill', 'UGX 25,000', 'Delivered'),
+                SizedBox(height: 12),
+                _buildRecentOrderCard('Caesar Salad', 'Healthy Bites', 'UGX 18,000', 'Delivered'),
               ],
             ),
-            SizedBox(height: 24),
-            
-            // Popular Restaurants
-            Text(
-              'Popular Near Campus',
-              style: AppTextStyles.subHeader,
-            ),
-            SizedBox(height: 16),
-            _buildRestaurantCard('Campus Grill', 'Burgers • Fries • Drinks', 4.5, '15-20 min'),
-            SizedBox(height: 12),
-            _buildRestaurantCard('Healthy Bites', 'Salads • Wraps • Smoothies', 4.8, '10-15 min'),
-            SizedBox(height: 12),
-            _buildRestaurantCard('Pizza Corner', 'Pizza • Pasta • Italian', 4.3, '20-25 min'),
-            SizedBox(height: 24),
-            
-            // Recent Orders Section
-            Text(
-              'Your Recent Orders',
-              style: AppTextStyles.subHeader,
-            ),
-            SizedBox(height: 16),
-            _buildRecentOrderCard('Beef Burger Combo', 'Campus Grill', 'UGX 25,000', 'Delivered'),
-            SizedBox(height: 12),
-            _buildRecentOrderCard('Caesar Salad', 'Healthy Bites', 'UGX 18,000', 'Delivered'),
-          ],
-        ),
-      ),
-      bottomNavigationBar: _buildBottomNav(0),
+          ),
+          bottomNavigationBar: _buildBottomNav(0),
+        );
+      },
     );
   }
 
   Widget _buildQuickAction(String title, IconData icon, Color color) {
     return GestureDetector(
       onTap: () {
-        // Add navigation logic here
+        if (title.contains('Schedule')) {
+          Navigator.pushNamed(context, '/weekly-schedule-setup');
+        } else if (title.contains('Browse')) {
+          // Navigate to restaurant browse
+        } else if (title.contains('History')) {
+          // Navigate to order history
+        }
       },
       child: Container(
         padding: EdgeInsets.all(16),
@@ -269,6 +312,78 @@ class CustomerHomeScreen extends StatelessWidget {
       onTap: (index) {
         // Handle navigation
       },
+    );
+  }
+
+  Future<List<UserEvent>> _fetchTodayEvents() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return [];
+    final today = DateTime.now();
+    final start = DateTime(today.year, today.month, today.day, 0, 0);
+    final end = DateTime(today.year, today.month, today.day, 23, 59);
+    final snapshot = await FirebaseFirestore.instance
+        .collection('events')
+        .where('userId', isEqualTo: user.uid)
+        .get();
+    final events = snapshot.docs.map((doc) => UserEvent.fromMap(doc.data())).toList();
+    return events.where((e) => e.startTime.isAfter(start) && e.startTime.isBefore(end)).toList();
+  }
+
+  Map<String, DateTime?> _findOptimalMealTimes(List<UserEvent> events, DateTime day) {
+    // Define meal windows
+    final windows = {
+      'breakfast': [TimeOfDay(hour: 7, minute: 0), TimeOfDay(hour: 11, minute: 0)],
+      'lunch': [TimeOfDay(hour: 12, minute: 0), TimeOfDay(hour: 17, minute: 0)],
+      'supper': [TimeOfDay(hour: 18, minute: 0), TimeOfDay(hour: 23, minute: 0)],
+    };
+    Map<String, DateTime?> result = {};
+    for (final meal in windows.keys) {
+      final start = windows[meal]![0];
+      final end = windows[meal]![1];
+      final windowStart = DateTime(day.year, day.month, day.day, start.hour, start.minute);
+      final windowEnd = DateTime(day.year, day.month, day.day, end.hour, end.minute);
+      final busy = events.where((e) => e.startTime.isBefore(windowEnd) && e.endTime.isAfter(windowStart)).toList();
+      final gaps = _findFreeGaps(windowStart, windowEnd, busy);
+      DateTime? mealStart;
+      for (final g in gaps) {
+        if (g.end.difference(g.start).inMinutes >= 30) {
+          mealStart = g.start;
+          break;
+        }
+      }
+      result[meal] = mealStart;
+    }
+    return result;
+  }
+
+  List<DateTimeRange> _findFreeGaps(DateTime windowStart, DateTime windowEnd, List<UserEvent> events) {
+    events.sort((a, b) => a.startTime.compareTo(b.startTime));
+    List<DateTimeRange> gaps = [];
+    DateTime current = windowStart;
+    for (final event in events) {
+      if (event.startTime.isAfter(current)) {
+        gaps.add(DateTimeRange(start: current, end: event.startTime));
+      }
+      if (event.endTime.isAfter(current)) {
+        current = event.endTime;
+      }
+    }
+    if (current.isBefore(windowEnd)) {
+      gaps.add(DateTimeRange(start: current, end: windowEnd));
+    }
+    return gaps;
+  }
+
+  Widget _buildMealTimeRow(String label, DateTime? time) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Row(
+        children: [
+          Text('$label:', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold)),
+          SizedBox(width: 8),
+          Text(time != null ? DateFormat('hh:mm a').format(time) : 'No free slot', style: AppTextStyles.body),
+        ],
+      ),
     );
   }
 }

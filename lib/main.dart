@@ -6,14 +6,10 @@ import 'app.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // ✅ Only initialize Firebase if it hasn't been initialized yet
-  if (Firebase.apps.isEmpty) {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  }
-
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -23,6 +19,6 @@ void main() async {
       systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
-
+  
   runApp(const MakBitesApp());
 }
