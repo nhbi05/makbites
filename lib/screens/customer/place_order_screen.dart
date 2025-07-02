@@ -5,8 +5,14 @@ import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/user_event.dart';
+import 'checkout_page.dart';
 
 class PlaceOrderScreen extends StatefulWidget {
+  final DateTime? initialDate;
+  final Map<String, DateTime?>? initialOptimalMealTimes;
+
+  const PlaceOrderScreen({Key? key, this.initialDate, this.initialOptimalMealTimes}) : super(key: key);
+
   @override
   _PlaceOrderScreenState createState() => _PlaceOrderScreenState();
 }
@@ -16,31 +22,63 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
   String? _mealType;
   String? _restaurant;
   String? _food;
+  int? _foodPrice;
   String? _paymentMethod;
   String? _location;
   Map<String, DateTime?>? _optimalMealTimes;
   bool _loadingMealTimes = false;
+  List<Map<String, dynamic>> _ordersForDay = [];
 
   final List<String> mealTypes = ['Breakfast', 'Lunch', 'Supper'];
   final List<String> restaurants = [
-    'Campus Grill',
-    'Healthy Bites',
-    'Pizza Corner',
-    'Freshhot',
-    'Fredoz',
+    'MK Catering Services',
+    'Lumumba Cafe',
+    "Ssalongo's",
+    'Freddoz',
+    'Fresh Hot',
+    'COCIS Cafetrira',
   ];
-  final Map<String, List<String>> restaurantFoods = {
-    'Campus Grill': ['Beef Burger', 'Chicken Wrap', 'Veggie Fries'],
-    'Healthy Bites': ['Caesar Salad', 'Avocado Wrap', 'Fruit Smoothie'],
-    'Pizza Corner': ['Pepperoni Pizza', 'Veggie Pizza', 'Pasta Alfredo'],
-    'Freshhot': ['Grilled Chicken', 'Hot Wings', 'Rice Bowl'],
-    'Fredoz': ['Fish Fingers', 'Beef Stew', 'Chapati Roll'],
+  final Map<String, List<Map<String, dynamic>>> restaurantFoods = {
+    'MK Catering Services': [
+      {'name': 'Pilau', 'price': 8000},
+      {'name': 'Chicken Stew', 'price': 10000},
+      {'name': 'Chapati', 'price': 2000},
+    ],
+    'Lumumba Cafe': [
+      {'name': 'Rolex', 'price': 3000},
+      {'name': 'Katogo', 'price': 4000},
+      {'name': 'Tea', 'price': 1500},
+    ],
+    "Ssalongo's": [
+      {'name': 'Matoke', 'price': 5000},
+      {'name': 'Beef Stew', 'price': 9000},
+      {'name': 'Rice', 'price': 3000},
+    ],
+    'Freddoz': [
+      {'name': 'Fish Fingers', 'price': 7000},
+      {'name': 'Beef Stew', 'price': 9000},
+      {'name': 'Chapati Roll', 'price': 2500},
+    ],
+    'Fresh Hot': [
+      {'name': 'Grilled Chicken', 'price': 12000},
+      {'name': 'Hot Wings', 'price': 8000},
+      {'name': 'Rice Bowl', 'price': 4000},
+    ],
+    'COCIS Cafetrira': [
+      {'name': 'Samosa', 'price': 1000},
+      {'name': 'Mandazi', 'price': 800},
+      {'name': 'Juice', 'price': 2000},
+    ],
   };
 
   @override
   void initState() {
     super.initState();
-    _fetchOptimalMealTimes();
+    _selectedDate = widget.initialDate ?? DateTime.now();
+    _optimalMealTimes = widget.initialOptimalMealTimes;
+    if (_optimalMealTimes == null) {
+      _fetchOptimalMealTimes();
+    }
   }
 
   Future<void> _fetchOptimalMealTimes() async {
@@ -156,6 +194,35 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
                 ),
               ),
             ),
+            SizedBox(height: 32),
+            if (_ordersForDay.isNotEmpty)
+              ...[
+                _buildOrderSummary(),
+                SizedBox(height: 16),
+                Center(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CheckoutPage(
+                            orders: _ordersForDay,
+                            optimalMealTimes: _optimalMealTimes,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: Icon(Icons.payment),
+                    label: Text('Checkout'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                      padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      textStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ],
           ],
         ),
       ),
@@ -175,8 +242,8 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
             final picked = await showDatePicker(
               context: context,
               initialDate: _selectedDate ?? DateTime.now(),
-              firstDate: DateTime.now(),
-              lastDate: DateTime.now().add(Duration(days: 30)),
+              firstDate: DateTime(2000),
+              lastDate: DateTime(2100),
             );
             if (picked != null) {
               setState(() => _selectedDate = picked);
@@ -233,7 +300,7 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
               children: [
                 Text('${e.key}: ', style: AppTextStyles.body),
                 Text(
-                  e.value != null ? DateFormat('hh:mm a').format(e.value!) : 'No free slot',
+                  e.value != null ? DateFormat('HH:mm').format(e.value!) : 'No free slot',
                   style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w500),
                 ),
               ],
@@ -244,7 +311,7 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
     );
   }
 
-  Widget _buildDropdown(String label, List<String> items, String? value, ValueChanged<String?> onChanged, {bool enabled = true}) {
+  Widget _buildDropdown(String label, List items, String? value, ValueChanged<String?> onChanged, {bool enabled = true}) {
     return InputDecorator(
       decoration: InputDecoration(
         labelText: label,
@@ -256,8 +323,25 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
         child: DropdownButton<String>(
           value: value,
           isExpanded: true,
-          items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-          onChanged: enabled ? onChanged : null,
+          items: label == 'Food'
+              ? items.map<DropdownMenuItem<String>>((item) => DropdownMenuItem(
+                    value: item['name'],
+                    child: Text('${item['name']} (UGX ${item['price']})'),
+                  )).toList()
+              : items.map<DropdownMenuItem<String>>((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+          onChanged: enabled
+              ? (val) {
+                  if (label == 'Food') {
+                    final selected = items.firstWhere((item) => item['name'] == val, orElse: () => <String, dynamic>{});
+                    setState(() {
+                      _food = val;
+                      _foodPrice = selected.isNotEmpty ? selected['price'] : null;
+                    });
+                  } else {
+                    onChanged(val);
+                  }
+                }
+              : null,
           hint: Text('Select $label'),
         ),
       ),
@@ -302,17 +386,29 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
   }
 
   bool _canSubmit() {
+    // Remove restriction: allow multiple orders for the same meal type
     return _selectedDate != null &&
         _mealType != null &&
         _restaurant != null &&
         _food != null &&
+        _foodPrice != null &&
         _paymentMethod != null &&
         _location != null &&
         _location!.trim().isNotEmpty;
   }
 
   void _submitOrder() {
-    // You can implement order submission logic here
+    // Save the order locally for summary
+    setState(() {
+      _ordersForDay.add({
+        'mealType': _mealType,
+        'restaurant': _restaurant,
+        'food': _food,
+        'foodPrice': _foodPrice,
+        'paymentMethod': _paymentMethod,
+        'location': _location,
+      });
+    });
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -320,10 +416,50 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
         content: Text('Your order has been placed successfully.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                // Reset only mealType, restaurant, food, paymentMethod, location
+                _mealType = null;
+                _restaurant = null;
+                _food = null;
+                _foodPrice = null;
+                _paymentMethod = null;
+                _location = null;
+                // Keep _selectedDate the same for convenience
+              });
+            },
             child: Text('OK'),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildOrderSummary() {
+    return Card(
+      color: AppColors.secondary.withOpacity(0.15),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Orders Placed for the Day', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold)),
+            SizedBox(height: 8),
+            ..._ordersForDay.map((order) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4.0),
+              child: Row(
+                children: [
+                  Icon(Icons.fastfood, size: 18, color: AppColors.primary),
+                  SizedBox(width: 8),
+                  Text('${order['mealType']}: ', style: AppTextStyles.body),
+                  Text('${order['food']} (UGX ${order['foodPrice']}) from ${order['restaurant']}', style: AppTextStyles.body),
+                ],
+              ),
+            )),
+          ],
+        ),
       ),
     );
   }

@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/user_event.dart';
 import 'package:intl/intl.dart';
+import 'order_history_screen.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   @override
@@ -40,26 +41,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Optimal Meal Times Section
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.all(16),
-                  margin: EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Today\'s Optimal Meal Times', style: AppTextStyles.subHeader),
-                      SizedBox(height: 8),
-                      _buildMealTimeRow('Breakfast', mealTimes['breakfast']),
-                      _buildMealTimeRow('Lunch', mealTimes['lunch']),
-                      _buildMealTimeRow('Supper', mealTimes['supper']),
-                    ],
-                  ),
-                ),
                 // Welcome Section
                 Container(
                   width: double.infinity,
@@ -141,7 +122,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         } else if (title.contains('Browse')) {
           // Navigate to restaurant browse
         } else if (title.contains('History')) {
-          // Navigate to order history
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => OrderHistoryScreen()),
+          );
         }
       },
       child: Container(
@@ -310,7 +294,13 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         ),
       ],
       onTap: (index) {
-        // Handle navigation
+        if (index == 2) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => OrderHistoryScreen()),
+          );
+        }
+        // Handle other navigation as needed
       },
     );
   }

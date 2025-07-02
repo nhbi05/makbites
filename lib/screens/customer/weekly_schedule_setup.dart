@@ -6,6 +6,7 @@ import '../automation/add_event_form.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/user_event.dart';
+import 'place_order_screen.dart';
 
 class WeeklyScheduleSetupScreen extends StatefulWidget {
   @override
@@ -347,10 +348,22 @@ class _WeeklyScheduleSetupScreenState extends State<WeeklyScheduleSetupScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
             child: SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
+              child: ElevatedButton.icon(
                 onPressed: () {
-                  Navigator.pop(context);
+                  final events = _getEventsForDay(_selectedDay!);
+                  final mealTimes = getOptimalMealTimes(events);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => PlaceOrderScreen(
+                        initialDate: _selectedDay!,
+                        initialOptimalMealTimes: mealTimes,
+                      ),
+                    ),
+                  );
                 },
+                icon: Icon(Icons.shopping_cart_checkout, color: AppColors.white),
+                label: Text('Place Order', style: AppTextStyles.button),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   padding: EdgeInsets.symmetric(vertical: 16),
@@ -358,7 +371,6 @@ class _WeeklyScheduleSetupScreenState extends State<WeeklyScheduleSetupScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: Text('Done', style: AppTextStyles.button),
               ),
             ),
           ),
