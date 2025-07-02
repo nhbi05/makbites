@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:clonemukbites/models/orders_model.dart'; //  the model
+import 'package:clonemukbites/models/orders_model.dart'; //  Your model
 
 class OrdersPage extends StatefulWidget {
   @override
@@ -33,7 +33,7 @@ class _OrdersPageState extends State<OrdersPage> {
       price: 2500,
     ),
     Order(
-      customerName: "Trevor",
+      customerName: "Bella",
       orderId: "Order #004",
       timeAgo: "20 minutes ago",
       items: ["Rice", "meat"],
@@ -49,6 +49,7 @@ class _OrdersPageState extends State<OrdersPage> {
       price: 2500,
     ),
   ];
+
   int get totalOrders => orders.length;
   int get completedOrders => orders.where((o) => o.status == "Completed").length;
   int get cancelledOrders => 1; // You can improve this later
@@ -63,127 +64,125 @@ class _OrdersPageState extends State<OrdersPage> {
       }
     });
   }
+
   void cancelOrder(int index) {
     setState(() {
       orders.removeAt(index);
     });
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
+      appBar: AppBar(
         backgroundColor: Colors.red,
         title: Text(
-        "Muk Bites",
-        style: TextStyle(
-        fontWeight: FontWeight.bold,
-        fontSize: 30,
-        color: Colors.white,
-    ),
-    ),
-    // Uncomment if you want to enable back navigation
-    // leading: IconButton(
-    //   icon: Icon(Icons.arrow_back),
-    //   onPressed: () => Navigator.pop(context),
-    // ),
-    ),
-        body: Padding(
-        padding: const EdgeInsets.all(12.0),
-    child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-    Text("Orders details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-    Text("Track and manage all your restaurant orders here!\n"),
-    Row(
-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-    children: [
-    _infoCard("Total orders", totalOrders.toString()),
-    _infoCard("Completed", completedOrders.toString()),
-    ],
-    ),
-      SizedBox(height: 8),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _infoCard("Cancelled", cancelledOrders.toString()),
-          _infoCard("Total Revenue", "shs.$totalRevenue"),
-        ],
+          "Muk Bites",
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 30,
+            color: Colors.white,
+          ),
+        ),
       ),
-      SizedBox(height: 16),
-      Text("Orders", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-      Expanded(
-        child: ListView.builder(
-          itemCount: orders.length,
-          itemBuilder: (context, index) {
-            final order = orders[index];
-            return GestureDetector(
-              onTap: () => updateOrderStatus(index),
-              child: Card(
-                margin: EdgeInsets.symmetric(vertical: 8),
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(order.customerName, style: TextStyle(fontWeight: FontWeight.bold)),
-                          IconButton(
-                            icon: Icon(Icons.cancel, color: Colors.red),
-                            onPressed: () => _showCancelDialog(context, index),
-                          ),
-                        ],
-                      ),
-                      Text("${order.orderId} • ${order.timeAgo}"),
-                      SizedBox(height: 4),
-                      ...order.items.map((item) => Text(item)).toList(),
-                      SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Container(
-                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: order.status == "Completed"
-                                  ? Colors.green
-                                  : order.status == "Start Preparing"
-                                  ? Colors.orange
-                                  : Colors.blueAccent,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
+      body: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Orders details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+            Text("Track and manage all your restaurant orders here!\n"),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _infoCard("Total orders", totalOrders.toString()),
+                _infoCard("Completed", completedOrders.toString()),
+              ],
+            ),
+            SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _infoCard("Cancelled", cancelledOrders.toString()),
+                _infoCard("Total Revenue", "shs.$totalRevenue"),
+              ],
+            ),
+            SizedBox(height: 16),
+            Text("Orders", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+            Expanded(
+              child: ListView.builder(
+                itemCount: orders.length,
+                itemBuilder: (context, index) {
+                  final order = orders[index];
+                  return GestureDetector(
+                    onTap: () => updateOrderStatus(index),
+                    child: Card(
+                      margin: EdgeInsets.symmetric(vertical: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Icon(
-                                  order.status == "Completed"
-                                      ? Icons.check
-                                      : order.status == "Start Preparing"
-                                      ? Icons.access_time
-                                      : Icons.fiber_new,
-                                  color: Colors.white,
-                                  size: 16,
+                                Text(order.customerName, style: TextStyle(fontWeight: FontWeight.bold)),
+                                IconButton(
+                                  icon: Icon(Icons.cancel, color: Colors.red),
+                                  onPressed: () => _showCancelDialog(context, index),
                                 ),
-                                SizedBox(width: 4),
-                                Text(order.status, style: TextStyle(color: Colors.white)),
                               ],
                             ),
-                          ),
-                          Text("Shs. ${order.price}", style: TextStyle(fontWeight: FontWeight.bold)),
-                        ],
+                            Text("${order.orderId} • ${order.timeAgo}"),
+                            SizedBox(height: 4),
+                            ...order.items.map((item) => Text(item)).toList(),
+                            SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: order.status == "Completed"
+                                        ? Colors.green
+                                        : order.status == "Start Preparing"
+                                        ? Colors.orange
+                                        : Colors.blueAccent,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        order.status == "Completed"
+                                            ? Icons.check
+                                            : order.status == "Start Preparing"
+                                            ? Icons.access_time
+                                            : Icons.fiber_new,
+                                        color: Colors.white,
+                                        size: 16,
+                                      ),
+                                      SizedBox(width: 4),
+                                      Text(order.status, style: TextStyle(color: Colors.white)),
+                                    ],
+                                  ),
+                                ),
+                                Text("Shs. ${order.price}", style: TextStyle(fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+                },
               ),
-            );
-          },
+            ),
+          ],
         ),
       ),
-    ],
-    ),
-        ),
     );
   }
+
   Widget _infoCard(String title, String value) {
     return Container(
       width: 150,
@@ -226,4 +225,3 @@ class _OrdersPageState extends State<OrdersPage> {
     );
   }
 }
-
