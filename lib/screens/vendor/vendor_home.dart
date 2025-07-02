@@ -4,6 +4,8 @@ import '../../constants/app_colours.dart';
 import '../../constants/text_styles.dart';
 import 'menu_page.dart';
 import 'analytics.dart';
+import 'orders.dart';
+import 'profile.dart'; // Make sure this exists
 
 class VendorHomePage extends StatefulWidget {
   @override
@@ -18,7 +20,6 @@ class _VendorHomePageState extends State<VendorHomePage> {
   void initState() {
     super.initState();
 
-    // Set status bar style to match revenue container
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
       statusBarColor: Colors.amber[100],
       statusBarIconBrightness: Brightness.dark,
@@ -27,9 +28,9 @@ class _VendorHomePageState extends State<VendorHomePage> {
 
     _pages = [
       _buildDashboard(),
-      Placeholder(), // Replace with OrdersPage()
+      OrdersPage(),
       MenuPage(),
-      Placeholder(), // Replace with ProfilePage()
+      Container(), // Placeholder for Profile tab, we push manually
     ];
   }
 
@@ -57,9 +58,16 @@ class _VendorHomePageState extends State<VendorHomePage> {
         selectedItemColor: AppColors.primary,
         unselectedItemColor: Colors.grey,
         onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
+          if (index == 3) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => ProfilePage()),
+            );
+          } else {
+            setState(() {
+              _currentIndex = index;
+            });
+          }
         },
         type: BottomNavigationBarType.fixed,
         items: const [
@@ -79,15 +87,11 @@ class _VendorHomePageState extends State<VendorHomePage> {
         children: [
           _headerSection(),
           _metricsGrid(),
-          //_quickActions(),
-
           _sectionTitle("Recent Orders"),
           _orderCard("#1234", "Matooke and Rice", "John Doe", "Preparing"),
           _sectionTitle("Popular Orders"),
           _orderCard("#1221", "Chapati and Beans", "Jane Smith", "Completed"),
           _orderCard("#1222", "Chicken Pilau", "Alex Kim", "Completed"),
-
-
         ],
       ),
     );
@@ -145,48 +149,6 @@ class _VendorHomePageState extends State<VendorHomePage> {
           )
         ],
       ),
-    );
-  }
-
-  // Widget _quickActions() {
-  //   return Padding(
-  //     padding: const EdgeInsets.all(12),
-  //     child: Row(
-  //       mainAxisAlignment: MainAxisAlignment.spaceAround,
-  //       children: [
-  //         GestureDetector(
-  //           onTap: () {
-  //             setState(() {
-  //               _currentIndex = 2; // Navigate to MenuPage
-  //             });
-  //           },
-  //           child: _quickAction(Icons.edit, "Manage Menu", AppColors.primary),
-  //         ),
-  //         GestureDetector(
-  //           onTap: () {
-  //             Navigator.push(
-  //               context,
-  //               MaterialPageRoute(builder: (context) => AnalyticsPage()),
-  //             );
-  //           },
-  //           child: _quickAction(Icons.bar_chart, "View Analytics", Colors.amber),
-  //         ),
-  //
-  //       ],
-  //     ),
-  //   );
-  // }
-
-  Widget _quickAction(IconData icon, String label, Color color) {
-    return Column(
-      children: [
-        CircleAvatar(
-          backgroundColor: color.withOpacity(0.1),
-          child: Icon(icon, color: color),
-        ),
-        SizedBox(height: 6),
-        Text(label, style: AppTextStyles.body.copyWith(fontSize: 12)),
-      ],
     );
   }
 

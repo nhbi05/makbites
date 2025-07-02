@@ -76,17 +76,17 @@ class _OrdersPageState extends State<OrdersPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.red,
-        title: Text(
-          "Muk Bites",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 30,
-            color: Colors.white,
-          ),
-        ),
-      ),
+      // appBar: AppBar(
+      //   backgroundColor: Colors.red,
+      //   title: Text(
+      //     "Muk Bites",
+      //     style: TextStyle(
+      //       fontWeight: FontWeight.bold,
+      //       fontSize: 30,
+      //       color: Colors.white,
+      //     ),
+      //   ),
+      // ),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
