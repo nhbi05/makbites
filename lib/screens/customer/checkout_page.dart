@@ -47,6 +47,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         'paymentMethod': order['paymentMethod'],
         'location': order['location'],
         'orderTime': _getOrderTime(order['mealType']),
+        'orderDate': order['orderDate'] ?? DateTime.now(),
         'clientTimestamp': DateTime.now(),
         'serverTimestamp': FieldValue.serverTimestamp(),
       });
@@ -129,10 +130,25 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   onPressed: _editableOrders.every((order) => order['paymentMethod'] != null && order['paymentMethod'].toString().trim().isNotEmpty && order['location'] != null && order['location'].toString().trim().isNotEmpty)
                       ? () async {
                           await _saveOrdersToFirestore();
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(builder: (context) => CustomerHomeScreen()),
-                            (route) => false,
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: Text('Order Confirmed!'),
+                              content: Text('Your meals have been ordered.'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(context); // Close dialog
+                                    Navigator.pushAndRemoveUntil(
+                                      context,
+                                      MaterialPageRoute(builder: (context) => CustomerHomeScreen()),
+                                      (route) => false,
+                                    );
+                                  },
+                                  child: Text('OK'),
+                                ),
+                              ],
+                            ),
                           );
                         }
                       : null,

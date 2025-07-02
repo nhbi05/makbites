@@ -386,7 +386,12 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
   }
 
   bool _canSubmit() {
-    // Remove restriction: allow multiple orders for the same meal type
+    // Prevent placing orders for past dates
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (_selectedDate != null && _selectedDate!.isBefore(today)) {
+      return false;
+    }
     return _selectedDate != null &&
         _mealType != null &&
         _restaurant != null &&
@@ -407,6 +412,7 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
         'foodPrice': _foodPrice,
         'paymentMethod': _paymentMethod,
         'location': _location,
+        'orderDate': _selectedDate,
       });
     });
     showDialog(
@@ -419,14 +425,13 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
             onPressed: () {
               Navigator.pop(context);
               setState(() {
-                // Reset only mealType, restaurant, food, paymentMethod, location
+                // Reset only mealType, restaurant, food, paymentMethod
                 _mealType = null;
                 _restaurant = null;
                 _food = null;
                 _foodPrice = null;
                 _paymentMethod = null;
-                _location = null;
-                // Keep _selectedDate the same for convenience
+                // Do NOT reset _location, keep it for convenience
               });
             },
             child: Text('OK'),

@@ -149,6 +149,9 @@ class _WeeklyScheduleSetupScreenState extends State<WeeklyScheduleSetupScreen> {
   Widget build(BuildContext context) {
     final events = _getEventsForDay(_selectedDay!);
     events.sort((a, b) => a.startTime.compareTo(b.startTime));
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final isPastDate = _selectedDay != null && _selectedDay!.isBefore(today);
     return Scaffold(
       appBar: AppBar(
         title: Text('Schedule Management'),
@@ -287,7 +290,7 @@ class _WeeklyScheduleSetupScreenState extends State<WeeklyScheduleSetupScreen> {
                               ),
                           ],
                         ),
-                        onTap: () async {
+                        onTap: isPastDate ? null : () async {
                           final eventData = await Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -349,7 +352,7 @@ class _WeeklyScheduleSetupScreenState extends State<WeeklyScheduleSetupScreen> {
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () {
+                onPressed: isPastDate ? null : () {
                   final events = _getEventsForDay(_selectedDay!);
                   final mealTimes = getOptimalMealTimes(events);
                   Navigator.push(
@@ -376,7 +379,7 @@ class _WeeklyScheduleSetupScreenState extends State<WeeklyScheduleSetupScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: isPastDate ? null : FloatingActionButton(
         onPressed: () async {
           final eventData = await Navigator.push(
             context,
