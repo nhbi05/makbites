@@ -56,3 +56,76 @@ class _ProfilePageState extends State<ProfilePage> {
     //     BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
     //   ],
     // ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Align(
+              alignment: Alignment.bottomRight,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EditProfilePage(
+                        name: restaurantName,
+                        description: description,
+                        cuisine: cuisineType,
+                        phone: phoneNumber,
+                        email: email,
+                        onSave: ({
+                          required String name,
+                          required String description,
+                          required String cuisine,
+                          required String phone,
+                          required String email,
+                        }) {
+                          updateProfile(
+                            newRestaurantName: name,
+                            newDescription: description,
+                            newCuisineType: cuisine,
+                            newPhone: phone,
+                            newEmail: email,
+                          );
+                        },
+                      ),
+                    ),
+                  );
+
+
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orangeAccent,
+                ),
+                child: const Text('Edit Profile', style: TextStyle(color: Colors.black),),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('Profile', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const Text('Manage all your restaurant details here', style: TextStyle(fontSize: 15),),
+            const Divider(height: 32),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _infoColumn('Restaurant Name', restaurantName),
+                _infoColumn('Cuisine Type', cuisineType),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _infoColumn('Description', description),
+
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _infoColumn('Phone Number', phoneNumber),
+                _infoColumn('Email', email),
+              ],
+            ),
+            const SizedBox(height: 320,)
+          ],
+        ),
+      ),
+    );
+  }
