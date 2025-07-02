@@ -23,3 +23,35 @@ class EditProfilePage extends StatefulWidget {
     required this.email,
     required this.onSave,
   }) : super(key: key);
+  @override
+  _EditProfilePageState createState() => _EditProfilePageState();
+}
+
+class _EditProfilePageState extends State<EditProfilePage> {
+  late TextEditingController nameController;
+  late TextEditingController descriptionController;
+  late TextEditingController cuisineController;
+  late TextEditingController phoneController;
+  late TextEditingController emailController;
+
+  bool isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    nameController = TextEditingController(text: widget.name);
+    descriptionController = TextEditingController(text: widget.description);
+    cuisineController = TextEditingController(text: widget.cuisine);
+    phoneController = TextEditingController(text: widget.phone);
+    emailController = TextEditingController(text: widget.email);
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    descriptionController.dispose();
+    cuisineController.dispose();
+    phoneController.dispose();
+    emailController.dispose();
+    super.dispose();
+  }
