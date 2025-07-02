@@ -172,13 +172,13 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 void _goHome(String role) {
   switch (role) {
-    case 'Customer':
+    case 'customer':
       Navigator.pushReplacementNamed(context, '/customer-home');
       break;
-    case 'Vendor':
+    case 'vendor':
       Navigator.pushReplacementNamed(context, '/vendor-home');
       break;
-    case 'Delivery':
+    case 'delivery':
       Navigator.pushReplacementNamed(context, '/delivery-home');
       break;
     default:

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../screens/splash_screen.dart';
-import '../screens/landing_page.dart';
+import '../auth/home_page.dart';
 import '../screens/auth/login.dart';
 import '../screens/auth/signup_screen.dart';
 import '../screens/customer/customer_home.dart';
@@ -21,7 +21,7 @@ class AppRoutes {
   static Map<String, WidgetBuilder> get routes {
     return {
       splash: (context) =>  SplashScreen(),
-      landing: (context) =>  LandingScreen(),
+      landing: (context) =>  HomePage(),
       login: (context) =>  LoginScreen(),
       signup: (context) =>  SignUpScreen(),
       customerHome: (context) =>  CustomerHomeScreen(),

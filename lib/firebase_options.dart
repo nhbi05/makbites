@@ -23,15 +23,9 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
         return windows;
       case TargetPlatform.linux:
@@ -63,6 +57,24 @@ class DefaultFirebaseOptions {
     storageBucket: 'mukbites-dfc31.firebasestorage.app',
   );
 
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyDzAJ7Af8-Ba7pJWzZ5AXzM0bna0lMVXUo',
+    appId: '1:798959788724:ios:9980b9b2f4e1bacd00ade1',
+    messagingSenderId: '798959788724',
+    projectId: 'mukbites-dfc31',
+    storageBucket: 'mukbites-dfc31.firebasestorage.app',
+    iosBundleId: 'com.example.makbites',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyDzAJ7Af8-Ba7pJWzZ5AXzM0bna0lMVXUo',
+    appId: '1:798959788724:macos:9980b9b2f4e1bacd00ade1',
+    messagingSenderId: '798959788724',
+    projectId: 'mukbites-dfc31',
+    storageBucket: 'mukbites-dfc31.firebasestorage.app',
+    iosBundleId: 'com.example.makbites',
+  );
+
   static const FirebaseOptions windows = FirebaseOptions(
     apiKey: 'AIzaSyDzAJ7Af8-Ba7pJWzZ5AXzM0bna0lMVXUo',
     appId: '1:798959788724:web:9980b9b2f4e1bacd00ade1',
@@ -71,4 +83,5 @@ class DefaultFirebaseOptions {
     authDomain: 'mukbites-dfc31.firebaseapp.com',
     storageBucket: 'mukbites-dfc31.firebasestorage.app',
   );
-}
+
+} 

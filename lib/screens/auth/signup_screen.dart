@@ -76,40 +76,42 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  Widget _buildRoleSelector() {
-    return Row(
+ Widget _buildRoleSelector() {
+  return SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: _roles.map((role) {
         final isSelected = _selectedRole == role['title'];
-        return Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: ChoiceChip(
-              label: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(role['icon'], size: 20),
-                  const SizedBox(width: 8),
-                  Text(role['title']),
-                ],
-              ),
-              selected: isSelected,
-              onSelected: (_) => setState(() => _selectedRole = role['title']),
-              selectedColor: AppColors.primary,
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.white : AppColors.textDark,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-                side: BorderSide(
-                  color: isSelected ? AppColors.primary : Colors.grey.shade300,
-                ),
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: ChoiceChip(
+            label: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(role['icon'], size: 20),
+                const SizedBox(width: 8),
+                Text(role['title']),
+              ],
+            ),
+            selected: isSelected,
+            onSelected: (_) => setState(() => _selectedRole = role['title']),
+            selectedColor: AppColors.primary,
+            labelStyle: TextStyle(
+              color: isSelected ? Colors.white : AppColors.textDark,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(
+                color: isSelected ? AppColors.primary : Colors.grey.shade300,
               ),
             ),
           ),
         );
       }).toList(),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildTextField(String label, TextEditingController controller, IconData icon) {
     return TextFormField(

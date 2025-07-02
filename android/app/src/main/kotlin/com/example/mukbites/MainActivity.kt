@@ -1,4 +1,4 @@
-package com.example.mukbites
+package com.example.makbites
 
 import io.flutter.embedding.android.FlutterActivity
 
