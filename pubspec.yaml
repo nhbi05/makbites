@@ -34,6 +34,11 @@ flutter:
   assets:
     - assets/images/logo.png
     - assets/images/homepage.png
+    - assets/images/freddoz.png
+    - assets/images/freshhot.png
+    - assets/images/Lumumbacafe.png
+    - assets/images/MKcatering.png
+    - assets/images/ssalongo's.png
 
   fonts:
     - family: Creepster

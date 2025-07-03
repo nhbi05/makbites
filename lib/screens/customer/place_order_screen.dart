@@ -36,7 +36,6 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
     "Ssalongo's",
     'Freddoz',
     'Fresh Hot',
-    'COCIS Cafetrira',
   ];
   final Map<String, List<Map<String, dynamic>>> restaurantFoods = {
     'MK Catering Services': [
@@ -63,11 +62,6 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
       {'name': 'Grilled Chicken', 'price': 12000},
       {'name': 'Hot Wings', 'price': 8000},
       {'name': 'Rice Bowl', 'price': 4000},
-    ],
-    'COCIS Cafetrira': [
-      {'name': 'Samosa', 'price': 1000},
-      {'name': 'Mandazi', 'price': 800},
-      {'name': 'Juice', 'price': 2000},
     ],
   };
 

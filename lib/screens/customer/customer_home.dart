@@ -15,6 +15,16 @@ class CustomerHomeScreen extends StatefulWidget {
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   @override
   Widget build(BuildContext context) {
+    String greeting() {
+      final hour = DateTime.now().hour;
+      if (hour < 12) {
+        return 'Good Morning!';
+      } else if (hour < 17) {
+        return 'Good Afternoon!';
+      } else {
+        return 'Good Evening!';
+      }
+    }
     return FutureBuilder<List<UserEvent>>(
       future: _fetchTodayEvents(),
       builder: (context, snapshot) {
@@ -36,76 +46,84 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
               ),
             ],
           ),
-          body: SingleChildScrollView(
-            padding: EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Welcome Section
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary,
-                    borderRadius: BorderRadius.circular(16),
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [AppColors.primary.withOpacity(0.03), Colors.white],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Welcome Section
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: AppColors.secondary,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withOpacity(0.08),
+                          blurRadius: 12,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          greeting(),
+                          style: AppTextStyles.subHeader.copyWith(fontSize: 26, fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Discover delicious meals and order from your favorite campus restaurants!',
+                          style: AppTextStyles.body.copyWith(fontSize: 16, color: AppColors.textDark.withOpacity(0.8)),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  SizedBox(height: 32),
+                  // Quick Actions
+                  Text(
+                    'Quick Actions',
+                    style: AppTextStyles.subHeader,
+                  ),
+                  SizedBox(height: 16),
+                  Row(
                     children: [
-                      Text(
-                        'Good Morning!',
-                        style: AppTextStyles.subHeader,
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'What would you like to eat today?',
-                        style: AppTextStyles.body,
-                      ),
+                      Expanded(child: _buildQuickAction('Schedule\nMeals', Icons.schedule, AppColors.primary)),
+                      SizedBox(width: 12),
+                      Expanded(child: _buildQuickAction('Browse\nRestaurants', Icons.restaurant, AppColors.success)),
+                      SizedBox(width: 12),
+                      Expanded(child: _buildQuickAction('Order\nHistory', Icons.history, AppColors.warning)),
                     ],
                   ),
-                ),
-                SizedBox(height: 24),
-                
-                // Quick Actions
-                Text(
-                  'Quick Actions',
-                  style: AppTextStyles.subHeader,
-                ),
-                SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(child: _buildQuickAction('Schedule\nMeals', Icons.schedule, AppColors.primary)),
-                    SizedBox(width: 12),
-                    Expanded(child: _buildQuickAction('Browse\nRestaurants', Icons.restaurant, AppColors.success)),
-                    SizedBox(width: 12),
-                    Expanded(child: _buildQuickAction('Order\nHistory', Icons.history, AppColors.warning)),
-                  ],
-                ),
-                SizedBox(height: 24),
-                
-                // Popular Restaurants
-                Text(
-                  'Popular Near Campus',
-                  style: AppTextStyles.subHeader,
-                ),
-                SizedBox(height: 16),
-                _buildRestaurantCard('Campus Grill', 'Burgers • Fries • Drinks', 4.5, '15-20 min'),
-                SizedBox(height: 12),
-                _buildRestaurantCard('Healthy Bites', 'Salads • Wraps • Smoothies', 4.8, '10-15 min'),
-                SizedBox(height: 12),
-                _buildRestaurantCard('Pizza Corner', 'Pizza • Pasta • Italian', 4.3, '20-25 min'),
-                SizedBox(height: 24),
-                
-                // Recent Orders Section
-                Text(
-                  'Your Recent Orders',
-                  style: AppTextStyles.subHeader,
-                ),
-                SizedBox(height: 16),
-                _buildRecentOrderCard('Beef Burger Combo', 'Campus Grill', 'UGX 25,000', 'Delivered'),
-                SizedBox(height: 12),
-                _buildRecentOrderCard('Caesar Salad', 'Healthy Bites', 'UGX 18,000', 'Delivered'),
-              ],
+                  SizedBox(height: 32),
+                  Divider(thickness: 1.2, color: AppColors.primary.withOpacity(0.15)),
+                  SizedBox(height: 24),
+                  // Popular Restaurants
+                  Text(
+                    'Popular Near Campus',
+                    style: AppTextStyles.subHeader.copyWith(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 18),
+                  ...[
+                    {'name': 'MK Catering Services', 'location': 'Africa Hall', 'image': 'assets/images/MKcatering.png'},
+                    {'name': 'Lumumba Cafe', 'location': 'Lumumba Hall', 'image': 'assets/images/Lumumbacafe.png'},
+                    {"name": "Ssalongo's", 'location': 'Makerere Kikoni', 'image': "assets/images/ssalongo's.png"},
+                    {'name': 'Freddoz', 'location': 'Wandegeya', 'image': 'assets/images/freddoz.png'},
+                    {'name': 'Fresh Hot', 'location': 'Kikumi kikumi', 'image': 'assets/images/freshhot.png'},
+                  ].map((restaurant) => _buildModernRestaurantCard(restaurant['name']!, restaurant['location']!, restaurant['image']!)).toList(),
+                  SizedBox(height: 32),
+                ],
+              ),
             ),
           ),
           bottomNavigationBar: _buildBottomNav(0),
@@ -373,6 +391,99 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           SizedBox(width: 8),
           Text(time != null ? DateFormat('hh:mm a').format(time) : 'No free slot', style: AppTextStyles.body),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSimpleRestaurantCard(String name, String location) {
+    return GestureDetector(
+      onTap: () {
+        // Navigate to restaurant details or do nothing
+      },
+      child: Container(
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              spreadRadius: 1,
+              blurRadius: 4,
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: AppColors.secondary,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.restaurant, color: AppColors.primary),
+            ),
+            SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: AppTextStyles.subHeader.copyWith(fontSize: 16)),
+                  SizedBox(height: 4),
+                  Text(location, style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernRestaurantCard(String name, String location, String imagePath) {
+    return Card(
+      elevation: 5,
+      margin: EdgeInsets.only(bottom: 18),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {},
+        child: Padding(
+          padding: const EdgeInsets.all(18.0),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.asset(
+                  imagePath,
+                  width: 56,
+                  height: 56,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              SizedBox(width: 18),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, style: AppTextStyles.subHeader.copyWith(fontSize: 17, fontWeight: FontWeight.bold)),
+                    SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(Icons.location_on, color: AppColors.success, size: 18),
+                        SizedBox(width: 4),
+                        Text(location, style: AppTextStyles.body.copyWith(color: AppColors.textDark.withOpacity(0.7))),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios, color: Colors.grey[400], size: 18),
+            ],
+          ),
+        ),
       ),
     );
   }
