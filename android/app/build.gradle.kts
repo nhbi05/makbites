@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.example.makbites"
     compileSdk = flutter.compileSdkVersion.toInt()
-    ndkVersion = "27.2.12479018"
+    ndkVersion = "29.0.13599879"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

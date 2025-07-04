@@ -397,6 +397,32 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
   }
 
   void _submitOrder() {
+    // Prevent placing an order for a meal time that has already passed (for today)
+    final now = DateTime.now();
+    if (_selectedDate != null &&
+        _mealType != null &&
+        _optimalMealTimes != null &&
+        _optimalMealTimes![_mealType!] != null) {
+      final selectedDate = DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day);
+      final today = DateTime(now.year, now.month, now.day);
+      final mealTime = _optimalMealTimes![_mealType!];
+      if (selectedDate == today && mealTime != null && mealTime.isBefore(now)) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Invalid Order Time'),
+            content: Text('You cannot place an order for a meal time that has already passed.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+    }
     // Save the order locally for summary
     setState(() {
       _ordersForDay.add({
