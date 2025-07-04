@@ -18,7 +18,7 @@ class AppRoutes {
   static const String customerHome = '/customer-home';
   static const String vendorHome = '/vendor-home';
   static const String deliveryHome = '/delivery-home';
-   static const String deliveryProfile = '/profiles';
+  static const String deliveryProfile = '/profiles';
   static const String weeklyScheduleSetup = '/weekly-schedule-setup';
 
   // Route map
