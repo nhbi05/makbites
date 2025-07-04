@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import '../../constants/app_colours.dart';
 import '../../constants/text_styles.dart';
 import 'menu_page.dart';
-import 'analytics.dart';
+//import 'analytics.dart';
 import 'orders.dart';
 import 'profile.dart'; // Make sure this exists
 
