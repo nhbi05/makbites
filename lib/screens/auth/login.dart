@@ -200,6 +200,7 @@ Future<void> _handleSignIn() async {
           .get();
 
       final role = snapshot.data()?['role'] ?? 'Customer';
+      print('Attempting to navigate to: $role');  
       _goHome(role);
 
     } on FirebaseAuthException catch (e) {
