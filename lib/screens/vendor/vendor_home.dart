@@ -28,7 +28,7 @@ class _VendorHomePageState extends State<VendorHomePage> {
 
     _pages = [
       _buildDashboard(),
-      OrdersPage(),
+      OrdersPage(vendorRestaurantId: "Ssalongo's"),
       MenuPage(),
       Container(), // Placeholder for Profile tab, we push manually
     ];
