@@ -175,8 +175,8 @@ void _goHome(String role) {
     case 'customer':
       Navigator.pushReplacementNamed(context, '/customer-home');
       break;
-    case 'vendor':
-      Navigator.pushReplacementNamed(context, '/vendor-home');
+    case 'restaurant':
+      Navigator.pushReplacementNamed(context, '/restaurant-home');
       break;
     case 'delivery':
       Navigator.pushReplacementNamed(context, '/delivery-home');
