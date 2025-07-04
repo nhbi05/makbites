@@ -20,7 +20,8 @@ dependencies:
   google_sign_in: ^7.0.0 
   google_maps_flutter: ^2.1.5
   url_launcher: ^6.1.5
-  intl: ^0.18.1 
+  intl: ^0.18.1  
+  table_calendar: ^3.0.9
 
   cupertino_icons: ^1.0.8
 
@@ -36,6 +37,11 @@ flutter:
   assets:
     - assets/images/logo.png
     - assets/images/homepage.png
+    - assets/images/freddoz.png
+    - assets/images/freshhot.png
+    - assets/images/Lumumbacafe.png
+    - assets/images/MKcatering.png
+    - assets/images/ssalongo's.png
 
   fonts:
     - family: Creepster

@@ -7,6 +7,7 @@ import '../screens/customer/customer_home.dart';
 import '../screens/vendor/vendor_home.dart';
 import '../screens/delivery/delivery_home.dart';
 import '../screens/delivery/profiles.dart';
+import '../screens/customer/weekly_schedule_setup.dart';
 
 class AppRoutes {
   // Route names
@@ -18,6 +19,7 @@ class AppRoutes {
   static const String vendorHome = '/vendor-home';
   static const String deliveryHome = '/delivery-home';
    static const String deliveryProfile = '/profiles';
+  static const String weeklyScheduleSetup = '/weekly-schedule-setup';
 
   // Route map
   static Map<String, WidgetBuilder> get routes {
@@ -31,6 +33,7 @@ class AppRoutes {
       deliveryHome: (context) =>  DeliveryHomeScreen(),
       deliveryProfile: (context) =>  ProfileScreen(),
 
+      weeklyScheduleSetup: (context) => WeeklyScheduleSetupScreen(),
     };
   }
 
