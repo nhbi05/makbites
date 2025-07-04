@@ -30,7 +30,8 @@ class _VendorHomePageState extends State<VendorHomePage> {
       _buildDashboard(),
       OrdersPage(vendorRestaurantId: "Ssalongo's"),
       MenuPage(),
-      Container(), // Placeholder for Profile tab, we push manually
+      //Container(), // Placeholder for Profile tab, we push manually
+      ProfilePage(),
     ];
   }
 
@@ -58,16 +59,9 @@ class _VendorHomePageState extends State<VendorHomePage> {
         selectedItemColor: AppColors.primary,
         unselectedItemColor: Colors.grey,
         onTap: (index) {
-          if (index == 3) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => ProfilePage()),
-            );
-          } else {
-            setState(() {
-              _currentIndex = index;
-            });
-          }
+          setState(() {
+            _currentIndex = index; // Just update the index here, no Navigator.push
+          });
         },
         type: BottomNavigationBarType.fixed,
         items: const [

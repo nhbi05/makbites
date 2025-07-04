@@ -36,26 +36,26 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
-        backgroundColor: Colors.red[400],
-        title: const Text('Mak Bites'),
-    // leading: IconButton(
-    //   icon: const Icon(Icons.arrow_back),
-    //   onPressed: () => Navigator.pop(context),
-    // ),
-    ),
-    // bottomNavigationBar: BottomNavigationBar(
-    //   currentIndex: 3,
-    //   onTap: (index) {
-    //     // Handle navigation
-    //   },
-    //   items: const [
-    //     BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-    //     BottomNavigationBarItem(icon: Icon(Icons.restaurant_menu), label: 'Menu'),
-    //     BottomNavigationBarItem(icon: Icon(Icons.shopping_bag), label: 'Orders'),
-    //     BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-    //   ],
-    // ),
+      //appBar: AppBar(
+        // backgroundColor: Colors.red[400],
+        // title: const Text('Mak Bites'),
+        // leading: IconButton(
+        //   icon: const Icon(Icons.arrow_back),
+        //   onPressed: () => Navigator.pop(context),
+        // ),
+      //),
+      // bottomNavigationBar: BottomNavigationBar(
+      //   currentIndex: 3,
+      //   onTap: (index) {
+      //     // Handle navigation
+      //   },
+      //   items: const [
+      //     BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+      //     BottomNavigationBarItem(icon: Icon(Icons.restaurant_menu), label: 'Menu'),
+      //     BottomNavigationBarItem(icon: Icon(Icons.shopping_bag), label: 'Orders'),
+      //     BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+      //   ],
+      // ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -123,7 +123,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 _infoColumn('Email', email),
               ],
             ),
-            const SizedBox(height: 320,)
+            const SizedBox(height: 260,)
           ],
         ),
       ),
@@ -153,3 +153,5 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 }
+
+
