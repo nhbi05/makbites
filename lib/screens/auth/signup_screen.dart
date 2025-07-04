@@ -21,12 +21,44 @@ class _SignUpScreenState extends State<SignUpScreen> {
   String _selectedRole = 'Customer';
   bool _isPasswordVisible = false;
   bool _isLoading = false;
+  String? _selectedRestaurantId;
+  List<Map<String, dynamic>> _restaurants = [];
+  bool _showRestaurantField = false;
 
   final List<Map<String, dynamic>> _roles = [
     {'title': 'Customer', 'icon': Icons.person},
     {'title': 'Vendor', 'icon': Icons.store},
     {'title': 'Delivery', 'icon': Icons.delivery_dining},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchRestaurants();
+  }
+
+  Future<void> _fetchRestaurants() async {
+  try {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .where('role', isEqualTo: 'vendor')  // Changed to match your role naming
+        .get();
+        
+    setState(() {
+      _restaurants = snapshot.docs.map((doc) {
+        return {
+          'id': doc.id,  // This is the user ID of the vendor
+          'name': doc.data()['businessName'] ?? doc.data()['name'] ?? 'Unnamed Vendor'
+          // Use businessName if available, fall back to name
+        };
+      }).toList();
+    });
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Failed to load vendors: ${e.toString()}')),
+    );
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +85,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
               _buildRoleSelector(),
               const SizedBox(height: 32),
               
+              // Restaurant Selection (only for delivery)
+              if (_showRestaurantField) _buildRestaurantDropdown(),
+              
               // Form Fields
               _buildTextField('Full Name', _nameController, Icons.person_outline),
               const SizedBox(height: 16),
@@ -76,43 +111,94 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
- Widget _buildRoleSelector() {
-  return SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: _roles.map((role) {
-        final isSelected = _selectedRole == role['title'];
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: ChoiceChip(
-            label: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(role['icon'], size: 20),
-                const SizedBox(width: 8),
-                Text(role['title']),
-              ],
-            ),
-            selected: isSelected,
-            onSelected: (_) => setState(() => _selectedRole = role['title']),
-            selectedColor: AppColors.primary,
-            labelStyle: TextStyle(
-              color: isSelected ? Colors.white : AppColors.textDark,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-              side: BorderSide(
-                color: isSelected ? AppColors.primary : Colors.grey.shade300,
+  Widget _buildRoleSelector() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: _roles.map((role) {
+          final isSelected = _selectedRole == role['title'];
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: ChoiceChip(
+              label: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(role['icon'], size: 20),
+                  const SizedBox(width: 8),
+                  Text(role['title']),
+                ],
+              ),
+              selected: isSelected,
+              onSelected: (_) {
+                setState(() {
+                  _selectedRole = role['title'];
+                  _showRestaurantField = _selectedRole == 'Delivery';
+                  if (!_showRestaurantField) {
+                    _selectedRestaurantId = null;
+                  }
+                });
+              },
+              selectedColor: AppColors.primary,
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.white : AppColors.textDark,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(
+                  color: isSelected ? AppColors.primary : Colors.grey.shade300,
+                ),
               ),
             ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildRestaurantDropdown() {
+  if (_restaurants.isEmpty) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Text('Loading restaurants...'),
+    );
+  }
+
+  return Column(
+    children: [
+      DropdownButtonFormField<String>(
+        value: _selectedRestaurantId,
+        decoration: InputDecoration(
+          labelText: 'Assigned Restaurant',
+          prefixIcon: Icon(Icons.restaurant),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: AppColors.primary),
           ),
-        );
-      }).toList(),
-    ),
+        ),
+        items: _restaurants.map<DropdownMenuItem<String>>((restaurant) {
+          return DropdownMenuItem<String>(
+            value: restaurant['id'],
+            child: Text(restaurant['name']),
+          );
+        }).toList(),
+        onChanged: (value) {
+          setState(() {
+            _selectedRestaurantId = value;
+          });
+        },
+        validator: (value) {
+          if (_showRestaurantField && (value == null || value.isEmpty)) {
+            return 'Please select a restaurant';
+          }
+          return null;
+        },
+      ),
+      SizedBox(height: 16),
+    ],
   );
 }
-
   Widget _buildTextField(String label, TextEditingController controller, IconData icon) {
     return TextFormField(
       controller: controller,
@@ -122,7 +208,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primary),
+          borderSide: BorderSide(color: AppColors.primary),
         ),
       ),
       validator: (value) => value!.isEmpty ? 'Please enter $label' : null,
@@ -135,11 +221,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
       keyboardType: TextInputType.emailAddress,
       decoration: InputDecoration(
         labelText: 'Email',
-        prefixIcon: const Icon(Icons.email_outlined, color: AppColors.primary),
+        prefixIcon: Icon(Icons.email_outlined, color: AppColors.primary),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primary),
+          borderSide: BorderSide(color: AppColors.primary),
         ),
       ),
       validator: (value) {
@@ -158,11 +244,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
       keyboardType: TextInputType.phone,
       decoration: InputDecoration(
         labelText: 'Phone',
-        prefixIcon: const Icon(Icons.phone_outlined, color: AppColors.primary),
+        prefixIcon: Icon(Icons.phone_outlined, color: AppColors.primary),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primary),
+          borderSide: BorderSide(color: AppColors.primary),
         ),
       ),
       validator: (value) => value!.isEmpty ? 'Please enter phone number' : null,
@@ -175,7 +261,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       obscureText: !_isPasswordVisible,
       decoration: InputDecoration(
         labelText: 'Password',
-        prefixIcon: const Icon(Icons.lock_outlined, color: AppColors.primary),
+        prefixIcon: Icon(Icons.lock_outlined, color: AppColors.primary),
         suffixIcon: IconButton(
           icon: Icon(
             _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
@@ -186,7 +272,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primary),
+          borderSide: BorderSide(color: AppColors.primary),
         ),
       ),
       validator: (value) {
@@ -210,7 +296,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           ),
         ),
         child: _isLoading
-            ? const CircularProgressIndicator(color: Colors.white)
+            ? CircularProgressIndicator(color: Colors.white)
             : Text('Sign Up', style: AppTextStyles.button),
       ),
     );
@@ -223,7 +309,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         Text('Already have an account? ', style: AppTextStyles.body),
         TextButton(
           onPressed: () => Navigator.pushNamed(context, '/login'),
-          child: const Text(
+          child: Text(
             'Sign In',
             style: TextStyle(
               color: AppColors.primary,
@@ -238,6 +324,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Future<void> _handleSignUp() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Additional validation for delivery riders
+    if (_selectedRole == 'delivery' && 
+        (_selectedRestaurantId == null || _selectedRestaurantId!.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please select a restaurant')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -248,7 +343,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             password: _passwordController.text.trim(),
           );
 
-      // 2. Create user document in Firestore
+      // 2. Create user document
       await FirebaseFirestore.instance
           .collection('users')
           .doc(credential.user!.uid)
@@ -263,15 +358,44 @@ class _SignUpScreenState extends State<SignUpScreen> {
             'updatedAt': FieldValue.serverTimestamp(),
           });
 
-      // 3. Navigate to appropriate home screen
+      // 3. If delivery rider, create rider document with restaurant
+      // 3. If delivery rider, create rider document with vendor association
+if (_selectedRole == 'Delivery') {
+  await FirebaseFirestore.instance
+      .collection('delivery_riders')
+      .doc('rider_${credential.user!.uid}')
+      .set({
+        'rider_id': 'rider_${credential.user!.uid}',
+        'user_id': credential.user!.uid,
+        'name': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'vendor_id': _selectedRestaurantId,  // Now this is actually a vendor user ID
+        'address': '',
+        'current_location': null,
+        'is_online': false,
+        'total_deliveries': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+        // Update restaurant with rider assignment
+        await FirebaseFirestore.instance
+            .collection('restaurants')
+            .doc(_selectedRestaurantId)
+            .update({
+              'assigned_riders': FieldValue.arrayUnion(['rider_${credential.user!.uid}']),
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+      }
+
+      // 4. Navigate to appropriate screen
       if (!mounted) return;
       _navigateToHome(_selectedRole);
 
     } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
       _showErrorSnackbar(e.code);
     } catch (e) {
-      if (!mounted) return;
       _showErrorSnackbar('Sign-up failed. Please try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
