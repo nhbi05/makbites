@@ -27,6 +27,7 @@ class AppRoutes {
       login: (context) =>  LoginScreen(),
       signup: (context) =>  SignUpScreen(),
       customerHome: (context) =>  CustomerHomeScreen(),
+      weeklyScheduleSetup: (context) =>  WeeklyScheduleSetupScreen(),
       vendorHome: (context) =>  VendorHomePage(),
       deliveryHome: (context) =>  DeliveryHomeScreen(),
     };
