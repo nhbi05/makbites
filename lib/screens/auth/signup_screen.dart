@@ -21,7 +21,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   String _selectedRole = 'Customer';
   bool _isPasswordVisible = false;
   bool _isLoading = false;
-  String? _selectedRestaurantId;
+  String? _selectedVendorId;
   List<Map<String, dynamic>> _restaurants = [];
   bool _showRestaurantField = false;
 
@@ -133,9 +133,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
               onSelected: (_) {
                 setState(() {
                   _selectedRole = role['title'];
-                  _showRestaurantField = _selectedRole == 'Delivery';
+                  _showRestaurantField = _selectedRole == 'delivery';
                   if (!_showRestaurantField) {
-                    _selectedRestaurantId = null;
+                    _selectedVendorId = null;
                   }
                 });
               },
@@ -167,7 +167,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   return Column(
     children: [
       DropdownButtonFormField<String>(
-        value: _selectedRestaurantId,
+        value: _selectedVendorId,
         decoration: InputDecoration(
           labelText: 'Assigned Restaurant',
           prefixIcon: Icon(Icons.restaurant),
@@ -185,7 +185,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         }).toList(),
         onChanged: (value) {
           setState(() {
-            _selectedRestaurantId = value;
+            _selectedVendorId = value;
           });
         },
         validator: (value) {
@@ -326,7 +326,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     // Additional validation for delivery riders
     if (_selectedRole == 'delivery' && 
-        (_selectedRestaurantId == null || _selectedRestaurantId!.isEmpty)) {
+        (_selectedVendorId == null || _selectedVendorId!.isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Please select a restaurant')),
       );
@@ -360,7 +360,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
       // 3. If delivery rider, create rider document with restaurant
       // 3. If delivery rider, create rider document with vendor association
-if (_selectedRole == 'Delivery') {
+if (_selectedRole == 'delivery') {
   await FirebaseFirestore.instance
       .collection('delivery_riders')
       .doc('rider_${credential.user!.uid}')
@@ -370,7 +370,7 @@ if (_selectedRole == 'Delivery') {
         'name': _nameController.text.trim(),
         'email': _emailController.text.trim(),
         'phone': _phoneController.text.trim(),
-        'vendor_id': _selectedRestaurantId,  // Now this is actually a vendor user ID
+        'assigned_vendors': [_selectedVendorId] ,
         'address': '',
         'current_location': null,
         'is_online': false,
@@ -382,7 +382,7 @@ if (_selectedRole == 'Delivery') {
         // Update restaurant with rider assignment
         await FirebaseFirestore.instance
             .collection('restaurants')
-            .doc(_selectedRestaurantId)
+            .doc(_selectedVendorId)
             .update({
               'assigned_riders': FieldValue.arrayUnion(['rider_${credential.user!.uid}']),
               'updatedAt': FieldValue.serverTimestamp(),
