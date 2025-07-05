@@ -3,19 +3,38 @@
 
 
 class Order {
-  final String customerName;
-  final String orderId;
-  final String timeAgo;
-  final List<String> items;
-  String status; // "Completed", "start preparing" but we can update later
-  final int price;
+  final String food;
+  final int foodPrice;
+  final String restaurant;
+  final String mealType;
+  final String orderDate;
+  final String dueTime;
+  final String paymentMethod;
+  final String userId;
+
 
   Order({
-    required this.customerName,
-    required this.orderId,
-    required this.timeAgo,
-    required this.items,
-    required this.status,
-    required this.price,
+    required this.food,
+    required this.foodPrice,
+    required this.restaurant,
+    required this.mealType,
+    required this.orderDate,
+    required this.dueTime,
+    required this.paymentMethod,
+    required this.userId,
   });
+
+  factory Order.fromFirestore(Map<String,dynamic> data){
+    return Order(
+      food: data['food'] ?? '',
+      foodPrice: data ['foodPrice'] ?? 0,
+      restaurant: data['restaurant'] ?? '',
+      mealType: data['mealType'] ?? '',
+      orderDate: data['orderDate']?.toString() ?? '',
+      dueTime: data['dueTime'] ?? '',
+      paymentMethod: data['paymentMethod'] ?? '',
+      userId: data['userId'] ?? '',
+    );
+
+  }
 }

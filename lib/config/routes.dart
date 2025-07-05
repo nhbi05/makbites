@@ -4,7 +4,7 @@ import '../auth/home_page.dart';
 import '../screens/auth/login.dart';
 import '../screens/auth/signup_screen.dart';
 import '../screens/customer/customer_home.dart';
-import '../screens/vendor/vendor_home.dart';
+import '../screens/vendor/restaurant_home.dart';
 import '../screens/delivery/delivery_home.dart';
 import '../screens/delivery/profiles.dart';
 import '../screens/customer/weekly_schedule_setup.dart';
@@ -16,7 +16,7 @@ class AppRoutes {
   static const String login = '/login';
   static const String signup = '/signup';
   static const String customerHome = '/customer-home';
-  static const String vendorHome = '/vendor-home';
+  static const String restaurantHome = '/restaurant-home';
   static const String deliveryHome = '/delivery-home';
   static const String deliveryProfile = '/profiles';
   static const String weeklyScheduleSetup = '/weekly-schedule-setup';
@@ -29,7 +29,7 @@ class AppRoutes {
       login: (context) =>  LoginScreen(),
       signup: (context) =>  SignUpScreen(),
       customerHome: (context) =>  CustomerHomeScreen(),
-      vendorHome: (context) =>  VendorHomePage(),
+      restaurantHome: (context) =>  VendorHomePage(),
       deliveryHome: (context) =>  DeliveryHomeScreen(),
       deliveryProfile: (context) =>  ProfileScreen(),
 

@@ -17,7 +17,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
-  
+
   String _selectedRole = 'Customer';
   bool _isPasswordVisible = false;
   bool _isLoading = false;
@@ -27,7 +27,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   final List<Map<String, dynamic>> _roles = [
     {'title': 'Customer', 'icon': Icons.person},
-    {'title': 'Vendor', 'icon': Icons.store},
+    {'title': 'Restaurant', 'icon': Icons.store},
     {'title': 'Delivery', 'icon': Icons.delivery_dining},
   ];
 
@@ -78,7 +78,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               const SizedBox(height: 8),
               Text('Join MakBites community', style: AppTextStyles.body),
               const SizedBox(height: 32),
-              
+
               // Role Selection
               Text('I am a:', style: AppTextStyles.subHeader),
               const SizedBox(height: 16),
@@ -90,19 +90,27 @@ class _SignUpScreenState extends State<SignUpScreen> {
               
               // Form Fields
               _buildTextField('Full Name', _nameController, Icons.person_outline),
+
+              // Dynamic Name Field
+              _buildTextField(
+                _selectedRole == 'Restaurant' ? 'Restaurant Name' : 'Full Name',
+                _nameController,
+                _selectedRole == 'Restaurant'
+                    ? Icons.store
+                    : Icons.person_outline,
+              ),
               const SizedBox(height: 16),
+
               _buildEmailField(),
               const SizedBox(height: 16),
               _buildPhoneField(),
               const SizedBox(height: 16),
               _buildPasswordField(),
               const SizedBox(height: 32),
-              
-              // Sign Up Button
+
               _buildSignUpButton(),
               const SizedBox(height: 24),
-              
-              // Sign In Link
+
               _buildSignInLink(),
             ],
           ),
@@ -251,7 +259,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
           borderSide: BorderSide(color: AppColors.primary),
         ),
       ),
-      validator: (value) => value!.isEmpty ? 'Please enter phone number' : null,
+      validator: (value) =>
+      value!.isEmpty ? 'Please enter phone number' : null,
     );
   }
 
@@ -267,7 +276,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
             _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
             color: AppColors.primary,
           ),
-          onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+          onPressed: () =>
+              setState(() => _isPasswordVisible = !_isPasswordVisible),
         ),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
@@ -336,27 +346,26 @@ class _SignUpScreenState extends State<SignUpScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Create auth user
-      final credential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(
-            email: _emailController.text.trim(),
-            password: _passwordController.text.trim(),
-          );
+      final credential =
+      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
 
       // 2. Create user document
       await FirebaseFirestore.instance
           .collection('users')
           .doc(credential.user!.uid)
           .set({
-            'uid': credential.user!.uid,
-            'name': _nameController.text.trim(),
-            'email': _emailController.text.trim(),
-            'phone': _phoneController.text.trim(),
-            'role': _selectedRole.toLowerCase(),
-            'emailVerified': false,
-            'createdAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+        'uid': credential.user!.uid,
+        'name': _nameController.text.trim(),
+        'email': _emailController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'role': _selectedRole.toLowerCase(),
+        'emailVerified': false,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
       // 3. If delivery rider, create rider document with restaurant
       // 3. If delivery rider, create rider document with vendor association
@@ -392,7 +401,6 @@ if (_selectedRole == 'delivery') {
       // 4. Navigate to appropriate screen
       if (!mounted) return;
       _navigateToHome(_selectedRole);
-
     } on FirebaseAuthException catch (e) {
       _showErrorSnackbar(e.code);
     } catch (e) {
@@ -405,7 +413,7 @@ if (_selectedRole == 'delivery') {
   void _navigateToHome(String role) {
     final route = switch (role.toLowerCase()) {
       'customer' => '/customer-home',
-      'vendor' => '/vendor-home',
+      'restaurant' => '/restaurant-home', // You can rename the route too if needed
       'delivery' => '/delivery-home',
       _ => '/',
     };
