@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart'; // For date formatting, add intl dependency in pubspec.yaml
+import 'package:intl/intl.dart';
 
 class OrdersPage extends StatefulWidget {
   final String vendorRestaurantId;
@@ -21,7 +21,8 @@ class _OrdersPageState extends State<OrdersPage> {
   }
 
   Future<void> _loadUsers() async {
-    final userSnapshot = await FirebaseFirestore.instance.collection('users').get();
+    final userSnapshot =
+    await FirebaseFirestore.instance.collection('users').get();
     final usersMap = <String, String>{};
     for (var doc in userSnapshot.docs) {
       final data = doc.data();
@@ -41,18 +42,23 @@ class _OrdersPageState extends State<OrdersPage> {
     } else if (currentStatus == "Start Preparing") {
       newStatus = "Completed";
     } else {
-      newStatus = currentStatus; // No change
+      return; // Do nothing if already Completed or Cancelled
     }
 
-    await FirebaseFirestore.instance.collection('orders').doc(orderId).update({
-      'status': newStatus,
-    });
+    await FirebaseFirestore.instance
+        .collection('orders')
+        .doc(orderId)
+        .update({'status': newStatus});
+
+    setState(() {});
   }
 
   void cancelOrder(String orderId) async {
-    await FirebaseFirestore.instance.collection('orders').doc(orderId).update({
-      'status': 'Cancelled',
-    });
+    await FirebaseFirestore.instance
+        .collection('orders')
+        .doc(orderId)
+        .update({'status': 'Cancelled'});
+    setState(() {});
   }
 
   void _showCancelDialog(BuildContext context, String orderId) {
@@ -78,16 +84,45 @@ class _OrdersPageState extends State<OrdersPage> {
     );
   }
 
+  Future<void> _createTestOrder() async {
+    String newId = 'ORDER-${DateTime.now().millisecondsSinceEpoch.toString()}';
+
+    await FirebaseFirestore.instance.collection('orders').doc(newId).set({
+      'restaurant': widget.vendorRestaurantId,
+      'food': 'Chapati',
+      'foodPrice': 2000,
+      'status': 'Pending',
+      'clientTimestamp': Timestamp.now(),
+      'serverTimestamp': Timestamp.now(),
+      'userId': _userIdToName.keys.isNotEmpty
+          ? _userIdToName.keys.first
+          : 'Unknown',
+      'mealType': 'Breakfast',
+      'paymentMethod': 'Cash on Delivery',
+      'deliveryAddress': 'Kampala, Plot 10 Makerere',
+      'contactInfo': '0789-123-456',
+      'notes': 'Please add ketchup and cutlery.',
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Test order $newId created')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        onPressed: _createTestOrder,
+        child: Icon(Icons.add),
+        tooltip: 'Create Test Order',
+      ),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
         child: StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('orders')
               .where('restaurant', isEqualTo: widget.vendorRestaurantId)
-              .orderBy('serverTimestamp', descending: true)
               .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -95,22 +130,20 @@ class _OrdersPageState extends State<OrdersPage> {
             }
 
             if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return Center(child: Text('No orders found.'));
+              return Center(child: Text('No orders found for this restaurant.'));
             }
 
             final orders = snapshot.data!.docs;
 
             int totalOrders = orders.length;
-            int completedOrders = orders.where((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              return data.containsKey('status') && data['status'] == "Completed";
-            }).length;
-
-            int cancelledOrders = orders.where((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              return data.containsKey('status') && data['status'] == "Cancelled";
-            }).length;
-
+            int completedOrders = orders
+                .where((doc) =>
+            (doc.data() as Map<String, dynamic>)['status'] == "Completed")
+                .length;
+            int cancelledOrders = orders
+                .where((doc) =>
+            (doc.data() as Map<String, dynamic>)['status'] == "Cancelled")
+                .length;
             int totalRevenue = orders.fold(0, (sum, doc) {
               final data = doc.data() as Map<String, dynamic>;
               final price = data['foodPrice'] ?? 0;
@@ -120,7 +153,9 @@ class _OrdersPageState extends State<OrdersPage> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Orders details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                Text("Orders details",
+                    style:
+                    TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
                 Text("Track and manage all your restaurant orders here!\n"),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -138,33 +173,47 @@ class _OrdersPageState extends State<OrdersPage> {
                   ],
                 ),
                 SizedBox(height: 16),
-                Text("Orders", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                Text("Orders",
+                    style:
+                    TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
                 Expanded(
                   child: ListView.builder(
                     itemCount: orders.length,
                     itemBuilder: (context, index) {
                       final orderDoc = orders[index];
-                      final orderData = orderDoc.data() as Map<String, dynamic>;
+                      final orderData =
+                      orderDoc.data() as Map<String, dynamic>;
 
                       final userId = orderData['userId'] ?? 'Unknown';
                       final customerName = _userIdToName[userId] ?? userId;
 
                       final orderId = orderDoc.id;
-
                       final timestamp = orderData['clientTimestamp'];
-                      final orderTime = (timestamp != null && timestamp is Timestamp)
-                          ? DateFormat('yyyy-MM-dd – kk:mm').format(timestamp.toDate())
+                      final orderTime = (timestamp != null &&
+                          timestamp is Timestamp)
+                          ? DateFormat('yyyy-MM-dd – kk:mm')
+                          .format(timestamp.toDate())
                           : 'Unknown time';
 
                       final foodItem = orderData['food'] ?? 'No items';
                       final status = orderData['status'] ?? 'Pending';
                       final price = orderData['foodPrice'] ?? 0;
-
                       final mealType = orderData['mealType'] ?? '';
                       final paymentMethod = orderData['paymentMethod'] ?? '';
 
                       return GestureDetector(
-                        onTap: () => updateOrderStatus(orderId, status),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => OrderDetailPage(
+                                orderId: orderId,
+                                orderData: orderData,
+                                customerName: customerName,
+                              ),
+                            ),
+                          );
+                        },
                         child: Card(
                           margin: EdgeInsets.symmetric(vertical: 8),
                           child: Padding(
@@ -173,12 +222,16 @@ class _OrdersPageState extends State<OrdersPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text(customerName, style: TextStyle(fontWeight: FontWeight.bold)),
+                                    Text(customerName,
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold)),
                                     IconButton(
                                       icon: Icon(Icons.cancel, color: Colors.red),
-                                      onPressed: () => _showCancelDialog(context, orderId),
+                                      onPressed: () =>
+                                          _showCancelDialog(context, orderId),
                                     ),
                                   ],
                                 ),
@@ -189,10 +242,12 @@ class _OrdersPageState extends State<OrdersPage> {
                                 Text("Payment: $paymentMethod"),
                                 SizedBox(height: 8),
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
                                   children: [
                                     Container(
-                                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                      padding: EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 4),
                                       decoration: BoxDecoration(
                                         color: status == "Completed"
                                             ? Colors.green
@@ -213,11 +268,15 @@ class _OrdersPageState extends State<OrdersPage> {
                                             size: 16,
                                           ),
                                           SizedBox(width: 4),
-                                          Text(status, style: TextStyle(color: Colors.white)),
+                                          Text(status,
+                                              style:
+                                              TextStyle(color: Colors.white)),
                                         ],
                                       ),
                                     ),
-                                    Text("Shs. $price", style: TextStyle(fontWeight: FontWeight.bold)),
+                                    Text("Shs. $price",
+                                        style:
+                                        TextStyle(fontWeight: FontWeight.bold)),
                                   ],
                                 ),
                               ],
@@ -251,6 +310,70 @@ class _OrdersPageState extends State<OrdersPage> {
           SizedBox(height: 4),
           Text(value),
         ],
+      ),
+    );
+  }
+}
+//order detail page
+class OrderDetailPage extends StatelessWidget {
+  final String orderId;
+  final Map<String, dynamic> orderData;
+  final String customerName;
+
+  const OrderDetailPage({
+    required this.orderId,
+    required this.orderData,
+    required this.customerName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final timestamp = orderData['clientTimestamp'];
+    final orderTime = (timestamp != null && timestamp is Timestamp)
+        ? DateFormat('yyyy-MM-dd – kk:mm').format(timestamp.toDate())
+        : 'Unknown time';
+
+    return Scaffold(
+      appBar: AppBar(title: Text('Order Details')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Card(
+          elevation: 4,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Order ID: $orderId",
+                      style:
+                      TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  SizedBox(height: 12),
+                  Text("Customer: $customerName"),
+                  Text("Food: ${orderData['food'] ?? 'N/A'}"),
+                  Text("Meal Type: ${orderData['mealType'] ?? 'N/A'}"),
+                  Text("Price: Shs. ${orderData['foodPrice'] ?? 'N/A'}"),
+                  Text("Payment Method: ${orderData['paymentMethod'] ?? 'N/A'}"),
+                  Text("Status: ${orderData['status'] ?? 'N/A'}"),
+                  Text("Time: $orderTime"),
+                  SizedBox(height: 12),
+                  Text(
+                      "Delivery Address: ${orderData['deliveryAddress'] ?? 'N/A'}"),
+                  Text("Contact Info: ${orderData['contactInfo'] ?? 'N/A'}"),
+                  SizedBox(height: 12),
+                  if (orderData.containsKey('notes') &&
+                      (orderData['notes'] as String).isNotEmpty)
+                    Text("Customer Notes:",
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                  if (orderData.containsKey('notes') &&
+                      (orderData['notes'] as String).isNotEmpty)
+                    Text(orderData['notes'],
+                        style: TextStyle(fontStyle: FontStyle.italic)),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
