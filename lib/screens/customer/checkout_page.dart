@@ -50,6 +50,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         'orderDate': order['orderDate'] ?? DateTime.now(),
         'clientTimestamp': DateTime.now(),
         'serverTimestamp': FieldValue.serverTimestamp(),
+        'status': 'pending',
       });
     }
   }

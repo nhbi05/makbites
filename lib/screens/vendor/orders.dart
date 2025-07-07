@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'models/orders_model.dart';//  Your model
+import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 
  //  Your model
 
@@ -9,69 +10,51 @@ class OrdersPage extends StatefulWidget {
 }
 
 class _OrdersPageState extends State<OrdersPage> {
-  List<Order> orders = [
-    Order(
-      customerName: "Khana",
-      orderId: "Order #001",
-      timeAgo: "1 hour ago",
-      items: ["Rice", "Peas(x2)"],
-      status: "Completed",
-      price: 3000,
-    ),
-    Order(
-      customerName: "Jamimah",
-      orderId: "Order #002",
-      timeAgo: "Just now",
-      items: ["Pilau rice"],
-      status: "Start Preparing",
-      price: 6000,
-    ),
-    Order(
-      customerName: "Dalton",
-      orderId: "Order #003",
-      timeAgo: "20 minutes ago",
-      items: ["Katogo"],
-      status: "Pending",
-      price: 2500,
-    ),
-    Order(
-      customerName: "Bella",
-      orderId: "Order #004",
-      timeAgo: "20 minutes ago",
-      items: ["Rice", "meat"],
-      status: "Start Preparing",
-      price: 5000,
-    ),
-    Order(
-      customerName: "Daniella",
-      orderId: "Order #005",
-      timeAgo: "10 minutes ago",
-      items: ["Katogo"],
-      status: "Pending",
-      price: 2500,
-    ),
-  ];
+  List<Order> orders = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchOrders();
+  }
+
+  Future<void> _fetchOrders() async {
+    final snapshot = await firestore.FirebaseFirestore.instance.collection('orders').get();
+    setState(() {
+      orders = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return Order(
+          customerName: data['userId'] ?? '',
+          orderId: doc.id,
+          timeAgo: '', // You can format this using timestamps
+          items: [data['food']?.toString() ?? ''],
+          status: data['status'] ?? 'pending',
+          price: data['foodPrice'] ?? 0,
+        );
+      }).toList();
+    });
+  }
+
+  Future<void> updateOrderStatus(int index, String newStatus) async {
+    final order = orders[index];
+    await firestore.FirebaseFirestore.instance.collection('orders').doc(order.orderId).update({'status': newStatus});
+    setState(() {
+      orders[index].status = newStatus;
+    });
+  }
+
+  Future<void> cancelOrder(int index) async {
+    final order = orders[index];
+    await firestore.FirebaseFirestore.instance.collection('orders').doc(order.orderId).update({'status': 'cancelled'});
+    setState(() {
+      orders[index].status = 'cancelled';
+    });
+  }
 
   int get totalOrders => orders.length;
   int get completedOrders => orders.where((o) => o.status == "Completed").length;
   int get cancelledOrders => 1; // You can improve this later
   int get totalRevenue => orders.fold(0, (sum, o) => sum + o.price);
-
-  void updateOrderStatus(int index) {
-    setState(() {
-      if (orders[index].status == "New" || orders[index].status == "Pending") {
-        orders[index].status = "Start Preparing";
-      } else if (orders[index].status == "Start Preparing") {
-        orders[index].status = "Completed";
-      }
-    });
-  }
-
-  void cancelOrder(int index) {
-    setState(() {
-      orders.removeAt(index);
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +100,13 @@ class _OrdersPageState extends State<OrdersPage> {
                 itemBuilder: (context, index) {
                   final order = orders[index];
                   return GestureDetector(
-                    onTap: () => updateOrderStatus(index),
+                    onTap: () {
+                      if (order.status == "New" || order.status == "Pending") {
+                        updateOrderStatus(index, "Start Preparing");
+                      } else if (order.status == "Start Preparing") {
+                        updateOrderStatus(index, "Completed");
+                      }
+                    },
                     child: Card(
                       margin: EdgeInsets.symmetric(vertical: 8),
                       child: Padding(
@@ -216,8 +205,8 @@ class _OrdersPageState extends State<OrdersPage> {
             child: Text("No"),
           ),
           TextButton(
-            onPressed: () {
-              cancelOrder(index);
+            onPressed: () async {
+              await cancelOrder(index);
               Navigator.pop(ctx);
             },
             child: Text("Yes"),

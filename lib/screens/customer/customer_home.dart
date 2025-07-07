@@ -7,6 +7,7 @@ import '../../models/user_event.dart';
 import 'package:intl/intl.dart';
 import 'order_history_screen.dart';
 import '../../config/routes.dart';
+import 'package:geolocator/geolocator.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   @override
@@ -14,6 +15,55 @@ class CustomerHomeScreen extends StatefulWidget {
 }
 
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
+  Position? _currentPosition;
+  String? _locationError;
+
+  Future<void> _getCurrentLocation() async {
+    setState(() {
+      _locationError = null;
+    });
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      setState(() {
+        _locationError = 'Location services are disabled.';
+      });
+      return;
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        setState(() {
+          _locationError = 'Location permissions are denied.';
+        });
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      setState(() {
+        _locationError = 'Location permissions are permanently denied.';
+      });
+      return;
+    }
+
+    try {
+      Position position = await Geolocator.getCurrentPosition();
+      setState(() {
+        _currentPosition = position;
+      });
+    } catch (e) {
+      setState(() {
+        _locationError = 'Failed to get location: '
+            + e.toString();
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     String greeting() {
@@ -60,6 +110,40 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Make Location Sharing Button smaller and less prominent
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton.icon(
+                    icon: Icon(Icons.location_on, size: 20),
+                    label: Text('Share Location', style: TextStyle(fontSize: 14)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      minimumSize: Size(0, 36),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: _getCurrentLocation,
+                  ),
+                ),
+                if (_currentPosition != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      'Lat: ${_currentPosition!.latitude}, Lng: ${_currentPosition!.longitude}',
+                      style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
+                if (_locationError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      _locationError!,
+                      style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
+                SizedBox(height: 16),
                 // Welcome Section
                 Container(
                   width: double.infinity,
