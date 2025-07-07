@@ -69,7 +69,10 @@ class _VendorHomePageState extends State<VendorHomePage> {
             )
                 : const Icon(Icons.person, color: Colors.white),
             onPressed: () {
-              Navigator.pushNamed(context, '/vendor-profile');
+              // Navigator.push(
+              //   context,
+              //   MaterialPageRoute(builder: (context) => ProfilePage()), // 👈 Pushes to your Profile Page widget
+              // );
             },
           ),
           const SizedBox(width: 10),

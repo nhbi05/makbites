@@ -257,6 +257,17 @@ class _MenuPageState extends State<MenuPage> with SingleTickerProviderStateMixin
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  if (item['description'] != null && item['description'].toString().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2.0),
+                      child: Text(
+                        item['description'],
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 4),
                   Text(
                     "UGX ${item['price']?.toStringAsFixed(0) ?? '0'}",
@@ -266,6 +277,7 @@ class _MenuPageState extends State<MenuPage> with SingleTickerProviderStateMixin
                       fontWeight: FontWeight.w500,
                     ),
                   ),
+
                   const SizedBox(height: 8),
                   // ✅ Status Badge Added Here:
                   Container(

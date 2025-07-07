@@ -186,6 +186,7 @@ class _OrdersPageState extends State<OrdersPage> {
                       final customerName = _userIdToName[userId] ?? userId;
 
                       final orderId = orderDoc.id;
+                      final displayOrderId = '#ORD${(index + 1).toString().padLeft(3, '0')}';
                       final timestamp = orderData['clientTimestamp'];
                       final orderTime = (timestamp != null && timestamp is Timestamp)
                           ? DateFormat('yyyy-MM-dd – kk:mm').format(timestamp.toDate())
@@ -216,6 +217,7 @@ class _OrdersPageState extends State<OrdersPage> {
                               MaterialPageRoute(
                                 builder: (_) => OrderDetailPage(
                                   orderId: orderId,
+                                  displayOrderId: displayOrderId,
                                   orderData: orderData,
                                   customerName: customerName,
                                 ),
@@ -240,7 +242,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                     ),
                                   ],
                                 ),
-                                Text("$orderId • $orderTime"),
+                                Text("$displayOrderId • $orderTime"),
                                 SizedBox(height: 4),
                                 Text("Food: $foodItem"),
                                 Text("Meal Type: $mealType"),
@@ -317,11 +319,13 @@ class _OrdersPageState extends State<OrdersPage> {
 // Order details page, that shows more info
 class OrderDetailPage extends StatelessWidget {
   final String orderId;
+  final String displayOrderId;
   final Map<String, dynamic> orderData;
   final String customerName;
 
   const OrderDetailPage({
     required this.orderId,
+    required this.displayOrderId,
     required this.orderData,
     required this.customerName,
   });
@@ -332,7 +336,7 @@ class OrderDetailPage extends StatelessWidget {
     final orderTime = (timestamp != null && timestamp is Timestamp)
         ? DateFormat('yyyy-MM-dd – kk:mm').format(timestamp.toDate())
         : 'Unknown time';
-
+    //final displayOrderId = '#ORD${orderId.substring(orderId.length - 3)}';
     return Scaffold(
       appBar: AppBar(title: Text('Order Details')),
       body: Padding(
@@ -345,7 +349,10 @@ class OrderDetailPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Order ID: $orderId", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  //Text("Order ID: $orderId", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+
+
+                  Text("Order ID: $displayOrderId", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                   SizedBox(height: 12),
                   Text("Customer: $customerName"),
                   Text("Food: ${orderData['food'] ?? 'N/A'}"),
