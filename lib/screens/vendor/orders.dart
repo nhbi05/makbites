@@ -6,7 +6,6 @@ import 'package:makbites/screens/vendor/set_preparation_time.dart';
 class OrdersPage extends StatefulWidget {
   final String vendorRestaurantId;
 
-  // Constructor with fallback default if empty or null
   OrdersPage({String? vendorRestaurantId})
       : vendorRestaurantId = (vendorRestaurantId == null || vendorRestaurantId.trim().isEmpty)
       ? "Ssalongo's"
@@ -23,12 +22,6 @@ class _OrdersPageState extends State<OrdersPage> {
   void initState() {
     super.initState();
     _loadUsers();
-
-    if (widget.vendorRestaurantId.trim().isEmpty) {
-      print("❗ vendorRestaurantId is EMPTY! Using fallback '${widget.vendorRestaurantId}'");
-    } else {
-      print("✅ Filtering orders for restaurant: '${widget.vendorRestaurantId}'");
-    }
   }
 
   Future<void> _loadUsers() async {
@@ -47,9 +40,7 @@ class _OrdersPageState extends State<OrdersPage> {
 
   void updateOrderStatus(String orderId, String currentStatus) async {
     String newStatus;
-    if (currentStatus == "New" || currentStatus == "Pending") {
-      newStatus = "Start Preparing";
-    } else if (currentStatus == "Start Preparing") {
+    if (currentStatus == "Start Preparing") {
       newStatus = "Completed";
     } else {
       return;
@@ -147,15 +138,6 @@ class _OrdersPageState extends State<OrdersPage> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (widget.vendorRestaurantId == "Ssalongo's")
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    // Uncomment below to show fallback warning text
-                    // child: Text(
-                    //   '⚠️ vendorRestaurantId was empty — using fallback "Ssalongo\'s"',
-                    //   style: TextStyle(color: Colors.red),
-                    // ),
-                  ),
                 Text("Orders details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
                 Text("Track and manage all your restaurant orders here!\n"),
                 Row(
@@ -199,32 +181,65 @@ class _OrdersPageState extends State<OrdersPage> {
                       final paymentMethod = orderData['paymentMethod'] ?? '';
 
                       return GestureDetector(
-                        onTap: () {
-                          if (status == "Pending") {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => SetPreparationTimePage(
-                                  orderId: orderId,
-                                  vendorRestaurantId: widget.vendorRestaurantId,
-                                ),
+                      onTap: () {
+                        print('🟡 Order tapped with status: $status');
+
+                        if (status == "Pending") {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => SetPreparationTimePage(
+                                orderId: orderId,
+                                vendorRestaurantId: widget.vendorRestaurantId,
                               ),
-                            );
-                          } else {
-                            // Navigate to OrderDetailPage for other statuses
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => OrderDetailPage(
-                                  orderId: orderId,
-                                  displayOrderId: displayOrderId,
-                                  orderData: orderData,
-                                  customerName: customerName,
-                                ),
+                            ),
+                          ).then((result) {
+                            if (result == true) {
+                              setState(() {});
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Order marked as "Start Preparing"!')),
+                              );
+                            }
+                          });
+                        } else if (status == "Start Preparing") {
+                          updateOrderStatus(orderId, status); // mark as Completed
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Order marked as "Completed"!')),
+                          );
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => OrderDetailPage(
+                                orderId: orderId,
+                                displayOrderId: displayOrderId,
+                                orderData: orderData,
+                                customerName: customerName,
                               ),
-                            );
-                          }
-                        },
+                            ),
+                          );
+                        }
+                      },
+
+                      //     ).then((result) {
+                        //       setState(() {}); // Refresh after prep time set
+                        //     });
+                        //   } else if (status == "Start Preparing") {
+                        //     updateOrderStatus(orderId, status); // Move to Completed
+                        //   } else {
+                        //     Navigator.push(
+                        //       context,
+                        //       MaterialPageRoute(
+                        //         builder: (_) => OrderDetailPage(
+                        //           orderId: orderId,
+                        //           displayOrderId: displayOrderId,
+                        //           orderData: orderData,
+                        //           customerName: customerName,
+                        //         ),
+                        //       ),
+                        //     );
+                        //   }
+                        // },
                         child: Card(
                           margin: EdgeInsets.symmetric(vertical: 8),
                           child: Padding(
@@ -284,6 +299,7 @@ class _OrdersPageState extends State<OrdersPage> {
                             ),
                           ),
                         ),
+
                       );
                     },
                   ),
@@ -316,7 +332,6 @@ class _OrdersPageState extends State<OrdersPage> {
   }
 }
 
-// Order details page, that shows more info
 class OrderDetailPage extends StatelessWidget {
   final String orderId;
   final String displayOrderId;
@@ -336,7 +351,7 @@ class OrderDetailPage extends StatelessWidget {
     final orderTime = (timestamp != null && timestamp is Timestamp)
         ? DateFormat('yyyy-MM-dd – kk:mm').format(timestamp.toDate())
         : 'Unknown time';
-    //final displayOrderId = '#ORD${orderId.substring(orderId.length - 3)}';
+
     return Scaffold(
       appBar: AppBar(title: Text('Order Details')),
       body: Padding(
@@ -345,13 +360,10 @@ class OrderDetailPage extends StatelessWidget {
           elevation: 4,
           child: Padding(
             padding: const EdgeInsets.all(16.0),
-            child: SingleChildScrollView( // Add scrolling in case content is long
+            child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  //Text("Order ID: $orderId", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-
-
                   Text("Order ID: $displayOrderId", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                   SizedBox(height: 12),
                   Text("Customer: $customerName"),

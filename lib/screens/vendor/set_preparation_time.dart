@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 class SetPreparationTimePage extends StatefulWidget {
   final String orderId;
-  final String vendorRestaurantId; // Add this if you need to pass it around
+  final String vendorRestaurantId;
 
   const SetPreparationTimePage({
     required this.orderId,
@@ -16,36 +16,56 @@ class SetPreparationTimePage extends StatefulWidget {
 
 class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
   String? selectedTime;
+  bool _isSubmitting = false;
+
   final List<String> times = ['10 minutes', '15 minutes', '20 minutes', '30 minutes'];
 
-  void _submitTime() async {
-    if (selectedTime == null) return;
+  Future<void> _submitTime() async {
+    if (selectedTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please select a preparation time.')),
+      );
+      return;
+    }
 
-    await FirebaseFirestore.instance.collection('orders').doc(widget.orderId).update({
-      'status': 'Start Preparing',
-      'estimatedPreparationTime': selectedTime,
-      'preparationStartTimestamp': FieldValue.serverTimestamp(),
-      'restaurant': widget.vendorRestaurantId, // Optional: in case needed again
+    setState(() {
+      _isSubmitting = true;
     });
 
-    Navigator.pop(context); // Go back to OrdersPage
+    try {
+      await FirebaseFirestore.instance.collection('orders').doc(widget.orderId).update({
+        'status': 'Start Preparing',
+        'estimatedPreparationTime': selectedTime,
+        'preparationStartTimestamp': FieldValue.serverTimestamp(),
+        'restaurant': widget.vendorRestaurantId,
+      });
 
-    // Optional: Show snack on OrdersPage instead of here
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Order marked as "Start Preparing"!')),
-    );
+      // Return success to OrdersPage
+      Navigator.pop(context, true);
+    } catch (e) {
+      setState(() {
+        _isSubmitting = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: Could not update order.')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text("Set Preparation Time")),
-      body: Padding(
+      body: _isSubmitting
+          ? Center(child: CircularProgressIndicator())
+          : Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            Text("Select an estimated preparation time:",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            Text(
+              "Select an estimated preparation time:",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
             SizedBox(height: 20),
             ...times.map((time) {
               return RadioListTile<String>(
