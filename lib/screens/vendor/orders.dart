@@ -6,10 +6,12 @@ import 'package:makbites/screens/vendor/set_preparation_time.dart';
 class OrdersPage extends StatefulWidget {
   final String vendorRestaurantId;
 
-  OrdersPage({String? vendorRestaurantId})
-      : vendorRestaurantId = (vendorRestaurantId == null || vendorRestaurantId.trim().isEmpty)
-      ? "Ssalongo's"
-      : vendorRestaurantId;
+  // OrdersPage({String? vendorRestaurantId})
+  //     : vendorRestaurantId = (vendorRestaurantId == null || vendorRestaurantId.trim().isEmpty)
+  //     ? "Ssalongo's"
+  //     : vendorRestaurantId;
+
+  OrdersPage({required this.vendorRestaurantId});
 
   @override
   _OrdersPageState createState() => _OrdersPageState();
@@ -181,47 +183,47 @@ class _OrdersPageState extends State<OrdersPage> {
                       final paymentMethod = orderData['paymentMethod'] ?? '';
 
                       return GestureDetector(
-                      onTap: () {
-                        print('🟡 Order tapped with status: $status');
+                        onTap: () {
+                          print('🟡 Order tapped with status: $status');
 
-                        if (status == "Pending") {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => SetPreparationTimePage(
-                                orderId: orderId,
-                                vendorRestaurantId: widget.vendorRestaurantId,
+                          if (status == "Pending") {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => SetPreparationTimePage(
+                                  orderId: orderId,
+                                  vendorRestaurantId: widget.vendorRestaurantId,
+                                ),
                               ),
-                            ),
-                          ).then((result) {
-                            if (result == true) {
-                              setState(() {});
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Order marked as "Start Preparing"!')),
-                              );
-                            }
-                          });
-                        } else if (status == "Start Preparing") {
-                          updateOrderStatus(orderId, status); // mark as Completed
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Order marked as "Completed"!')),
-                          );
-                        } else {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => OrderDetailPage(
-                                orderId: orderId,
-                                displayOrderId: displayOrderId,
-                                orderData: orderData,
-                                customerName: customerName,
+                            ).then((result) {
+                              if (result == true) {
+                                setState(() {});
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Order marked as "Start Preparing"!')),
+                                );
+                              }
+                            });
+                          } else if (status == "Start Preparing") {
+                            updateOrderStatus(orderId, status); // mark as Completed
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Order marked as "Completed"!')),
+                            );
+                          } else {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => OrderDetailPage(
+                                  orderId: orderId,
+                                  displayOrderId: displayOrderId,
+                                  orderData: orderData,
+                                  customerName: customerName,
+                                ),
                               ),
-                            ),
-                          );
-                        }
-                      },
+                            );
+                          }
+                        },
 
-                      //     ).then((result) {
+                        //     ).then((result) {
                         //       setState(() {}); // Refresh after prep time set
                         //     });
                         //   } else if (status == "Start Preparing") {
