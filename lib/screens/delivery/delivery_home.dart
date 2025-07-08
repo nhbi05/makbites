@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../constants/app_colours.dart';
 import '../../constants/text_styles.dart';
 import '../../config/routes.dart';
+import './delivery_map_screen.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../../models/delivery_location.dart'; // Import DeliveryLocation model
 
 class DeliveryHomeScreen extends StatefulWidget {
   @override
@@ -11,7 +15,7 @@ class DeliveryHomeScreen extends StatefulWidget {
 
 class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
   bool _isOnline = true;
-  bool _hasActiveDelivery = true;
+  bool _hasActiveDelivery = false; // Changed to false initially
   int _currentNavIndex = 0;
   
   // Mock data - replace with actual data from your backend
@@ -20,35 +24,34 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
     'distance': 45
   };
 
-  List<Map<String, dynamic>> _availableDeliveries = [
-    {
-      'id': '1',
-      'route': 'Campus Grill → Mary Stuart Hall',
-      'items': 'Beef Burger Combo + Fries',
-      'earning': 4500,
-      'distance': 2.3,
-      'time': 8,
-      'isUrgent': true,
-    },
-    {
-      'id': '2',
-      'route': 'Pizza Corner → Lumumba Hall',
-      'items': 'Margherita Pizza + Drinks',
-      'earning': 6200,
-      'distance': 3.1,
-      'time': 12,
-      'isUrgent': false,
-    },
+  List<DeliveryLocation> _availableDeliveries = [
+    DeliveryLocation(
+      id: '1',
+      name: 'Campus Grill',
+      address: 'Mary Stuart Hall',
+      coordinates: LatLng(0.3036, 32.5711), // Example coordinates
+      customerName: 'John Doe',
+      customerPhone: '+256700123456',
+      items: 'Beef Burger Combo + Fries',
+      earning: 4500,
+      isPickup: true,
+    ),
+    DeliveryLocation(
+      id: '2',
+      name: 'Lumumba Hall',
+      address: 'Pizza Corner',
+      coordinates: LatLng(0.3136, 32.5811), // Example coordinates
+      customerName: 'Jane Smith',
+      customerPhone: '+256700123457',
+      items: 'Margherita Pizza + Drinks',
+      earning: 6200,
+      isPickup: false,
+    ),
   ];
 
-  Map<String, dynamic>? _currentDelivery = {
-    'id': 'current_1',
-    'route': 'Healthy Bites → Nkrumah Hall',
-    'items': 'Caesar Salad + Smoothie',
-    'earning': 3200,
-    'timeRemaining': 15,
-    'customerPhone': '+256700123456',
-  };
+  List<DeliveryLocation> _acceptedDeliveries = []; // New list to hold accepted deliveries
+
+  DeliveryLocation? _currentDelivery; // Will be set when a route is optimized and started
 
   List<Map<String, dynamic>> _recentDeliveries = [
     {
@@ -62,6 +65,30 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
       'status': 'Delivered',
     },
   ];
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  void _viewMultiDeliveryMap() {
+    if (_acceptedDeliveries.isNotEmpty) {
+      Navigator.pushNamed(
+        context,
+        AppRoutes.deliveryMap,
+        arguments: _acceptedDeliveries,
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No deliveries accepted for mapping')),
+      );
+    }
+  }
 
   Future<void> _logout(BuildContext context) async {
     try {
@@ -118,7 +145,6 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
   }
 
   void _refreshDeliveries() {
-    // Add refresh logic here - typically fetch from API
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Refreshing deliveries...'),
@@ -132,12 +158,12 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
     });
   }
 
-  void _acceptDelivery(Map<String, dynamic> delivery) {
+  void _acceptDelivery(DeliveryLocation delivery) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Accept Delivery'),
-        content: Text('Do you want to accept this delivery for UGX ${delivery['earning']}?'),
+        content: Text('Do you want to accept this delivery for UGX ${delivery.earning}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -147,21 +173,14 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
             onPressed: () {
               Navigator.pop(context);
               setState(() {
-                _currentDelivery = {
-                  'id': delivery['id'],
-                  'route': delivery['route'],
-                  'items': delivery['items'],
-                  'earning': delivery['earning'],
-                  'timeRemaining': delivery['time'],
-                  'customerPhone': '+256700123456', // Mock phone
-                };
-                _availableDeliveries.removeWhere((d) => d['id'] == delivery['id']);
-                _hasActiveDelivery = true;
+                _acceptedDeliveries.add(delivery);
+                _availableDeliveries.removeWhere((d) => d.id == delivery.id);
+                _hasActiveDelivery = _acceptedDeliveries.isNotEmpty; // Update active delivery status
               });
               
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Delivery accepted! Navigate to pickup location.'),
+                  content: Text('Delivery accepted! Added to your accepted list.'),
                   backgroundColor: Colors.green,
                 ),
               );
@@ -174,36 +193,25 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
     );
   }
 
-  void _startNavigation() {
-    if (_currentDelivery != null) {
-      // Here you would integrate with maps (Google Maps, Apple Maps, etc.)
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Opening navigation to ${_currentDelivery!['route']}'),
-          backgroundColor: Colors.blue,
-        ),
-      );
-      
-      // Example: Launch external maps app
-      // You can use url_launcher package for this
-      // launch('https://maps.google.com/...');
-    }
+  Future<void> _startNavigation() async {
+    // The actual navigation logic will be handled within DeliveryMapScreen.
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Please use 'Multi Delivery' to view and navigate your accepted deliveries."),
+        backgroundColor: Colors.blue,
+      ),
+    );
   }
 
   void _callCustomer() {
-    if (_currentDelivery != null) {
-      // Here you would make a phone call
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Calling ${_currentDelivery!['customerPhone']}'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      
-      // Example: Launch phone dialer
-      // You can use url_launcher package for this
-      // launch('tel:${_currentDelivery!['customerPhone']}');
-    }
+    // This function will be removed or modified to call the customer of the *next* delivery in the optimized route.
+    // For now, it will show a message.
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Call customer functionality will be available on the map screen for the current delivery."),
+        backgroundColor: Colors.blue,
+      ),
+    );
   }
 
   void _handleBottomNavTap(int index) {
@@ -211,87 +219,119 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
       _currentNavIndex = index;
     });
 
-    // Handle navigation based on index
     switch (index) {
       case 0:
-        // Already on home - do nothing
         break;
       case 1:
-        // Navigate to deliveries screen
-        Navigator.pushNamed(context, '/deliveries');
+        Navigator.pushNamed(context, 
+        AppRoutes.deliveryMap, // Assuming this route exists
+        arguments: _acceptedDeliveries, // Pass accepted deliveries
+        );
         break;
       case 2:
-        // Navigate to profile screen
-      case 3:
-      Navigator.pushNamed(context, AppRoutes.deliveryProfile); 
-      break;
+        Navigator.pushNamed(context, AppRoutes.deliveryProfile); 
+        break;
     }
+  }
+
+  Widget _buildQuickActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Quick Actions", style: AppTextStyles.subHeader),
+        SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(child: _buildQuickAction(
+              _isOnline ? "Go Offline" : "Go Online",
+              Icons.power_settings_new,
+              _isOnline ? Colors.red : Colors.green,
+              _toggleOnlineStatus,
+            )),
+            SizedBox(width: 12),
+            Expanded(child: _buildQuickAction(
+              "Multi\nDelivery",
+              Icons.alt_route,
+              AppColors.primary,
+              _viewMultiDeliveryMap,
+            )),
+            SizedBox(width: 12),
+            Expanded(child: _buildQuickAction(
+              "Delivery\nHistory",
+              Icons.history,
+              AppColors.success,
+              () => Navigator.pushNamed(context, "/deliveries"),
+            )),
+          ],
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('MakBites Delivery', style: TextStyle(color: Colors.white)),
+        title: Text("MakBites Delivery", style: TextStyle(color: Colors.white)),
         backgroundColor: AppColors.primary,
         elevation: 0,
         actions: [
           IconButton(
             icon: Icon(Icons.notifications_outlined, color: Colors.white),
             onPressed: () {
-              Navigator.pushNamed(context, '/notifications');
+              Navigator.pushNamed(context, "/notifications");
             },
           ),
           IconButton(
             icon: Icon(Icons.help_outline, color: Colors.white),
             onPressed: () {
-              Navigator.pushNamed(context, '/help');
+              Navigator.pushNamed(context, "/help");
             },
           ),
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert, color: Colors.white),
             onSelected: (value) {
               switch (value) {
-                case 'logout':
+                case "logout":
                   _logout(context);
                   break;
-                case 'settings':
-                  Navigator.pushNamed(context, '/settings');
+                case "settings":
+                  Navigator.pushNamed(context, "/settings");
                   break;
-                case 'support':
-                  Navigator.pushNamed(context, '/support');
+                case "support":
+                  Navigator.pushNamed(context, "/support");
                   break;
               }
             },
             itemBuilder: (BuildContext context) {
               return [
                 PopupMenuItem<String>(
-                  value: 'settings',
+                  value: "settings",
                   child: Row(
                     children: [
                       Icon(Icons.settings, color: Colors.grey),
                       SizedBox(width: 8),
-                      Text('Settings'),
+                      Text("Settings"),
                     ],
                   ),
                 ),
                 PopupMenuItem<String>(
-                  value: 'support',
+                  value: "support",
                   child: Row(
                     children: [
                       Icon(Icons.support_agent, color: Colors.grey),
                       SizedBox(width: 8),
-                      Text('Support'),
+                      Text("Support"),
                     ],
                   ),
                 ),
                 PopupMenuItem<String>(
-                  value: 'logout',
+                  value: "logout",
                   child: Row(
                     children: [
                       Icon(Icons.logout, color: Colors.red),
                       SizedBox(width: 8),
-                      Text('Logout', style: TextStyle(color: Colors.red)),
+                      Text("Logout", style: TextStyle(color: Colors.red)),
                     ],
                   ),
                 ),
@@ -333,6 +373,10 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
               _buildAvailableDeliveriesSection(),
               SizedBox(height: 24),
               
+              // Accepted Deliveries Section
+              _buildAcceptedDeliveriesSection(),
+              SizedBox(height: 24),
+
               // Recent Deliveries
               _buildRecentDeliveriesSection(),
             ],
@@ -340,12 +384,12 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
         ),
       ),
       bottomNavigationBar: _buildBottomNav(),
-      floatingActionButton: _hasActiveDelivery
+      floatingActionButton: _acceptedDeliveries.isNotEmpty
           ? FloatingActionButton.extended(
-              onPressed: _startNavigation,
-              backgroundColor: AppColors.success,
-              icon: Icon(Icons.navigation, color: AppColors.white),
-              label: Text('Navigate', style: TextStyle(color: AppColors.white)),
+              onPressed: _viewMultiDeliveryMap,
+              backgroundColor: AppColors.primary,
+              icon: Icon(Icons.map, color: AppColors.white),
+              label: Text("View Accepted Deliveries", style: TextStyle(color: AppColors.white)),
             )
           : null,
     );
@@ -373,25 +417,25 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
               Icon(
                 Icons.circle, 
                 color: _isOnline ? Colors.green : Colors.orange, 
-                size: 12
+                size: 12,
               ),
               SizedBox(width: 8),
               Text(
-                _isOnline ? 'Online - Ready for Deliveries' : 'Offline',
+                _isOnline ? "Online - Ready for Deliveries" : "Offline",
                 style: AppTextStyles.body.copyWith(color: AppColors.white),
               ),
             ],
           ),
           SizedBox(height: 8),
           Text(
-            'Good Morning, Rider!',
+            "Good Morning, Rider!",
             style: AppTextStyles.subHeader.copyWith(color: AppColors.white),
           ),
           SizedBox(height: 4),
           Text(
             _isOnline 
-                ? 'You\'re ready to start earning today'
-                : 'Go online to start receiving deliveries',
+                ? "You're ready to start earning today"
+                : "Go online to start receiving deliveries",
             style: AppTextStyles.body.copyWith(color: AppColors.white),
           ),
         ],
@@ -400,59 +444,25 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
   }
 
   Widget _buildTodayStats() {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text('Today\'s Performance', style: AppTextStyles.subHeader),
-      SizedBox(height: 16),
-      Row(
-        children: [
-          Expanded(child: _buildStatCard(
-            'Deliveries', 
-            '${_todayStats['deliveries']}', 
-            Icons.local_shipping, 
-            AppColors.success
-          )),
-          SizedBox(width: 12),
-          Expanded(child: _buildStatCard(
-            'Distance', 
-            '${_todayStats['distance']} km', 
-            Icons.route, 
-            AppColors.primary
-          )),
-        ],
-      ),
-    ],
-  );
-}
-
-  Widget _buildQuickActions() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Quick Actions', style: AppTextStyles.subHeader),
+        Text("Today's Performance", style: AppTextStyles.subHeader),
         SizedBox(height: 16),
         Row(
           children: [
-            Expanded(child: _buildQuickAction(
-              _isOnline ? 'Go Offline' : 'Go Online',
-              Icons.power_settings_new,
-              _isOnline ? Colors.red : Colors.green,
-              _toggleOnlineStatus,
+            Expanded(child: _buildStatCard(
+              "Deliveries", 
+              "${_todayStats["deliveries"]}", 
+              Icons.local_shipping, 
+              AppColors.success
             )),
             SizedBox(width: 12),
-            Expanded(child: _buildQuickAction(
-              'View Map',
-              Icons.map,
-              AppColors.primary,
-              () => Navigator.pushNamed(context, '/map'),
-            )),
-            SizedBox(width: 12),
-            Expanded(child: _buildQuickAction(
-              'Delivery\nHistory',
-              Icons.history,
-              AppColors.success,
-              () => Navigator.pushNamed(context, '/deliveries'),
+            Expanded(child: _buildStatCard(
+              "Distance", 
+              "${_todayStats["distance"]} km", 
+              Icons.route, 
+              AppColors.primary
             )),
           ],
         ),
@@ -460,29 +470,67 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
     );
   }
 
+  Widget _buildCurrentDeliveryCard() {
+    // This card will now display information about the *current active route* if one is set
+    // For now, it will display a placeholder or be hidden if no active route.
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Active Route Summary",
+            style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 8),
+          Text("You have ${_acceptedDeliveries.length} deliveries accepted.", 
+              style: TextStyle(color: Colors.grey)),
+          SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              icon: Icon(Icons.map),
+              label: Text("View Route on Map"),
+              onPressed: _viewMultiDeliveryMap,
+              style: OutlinedButton.styleFrom(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                side: BorderSide(color: AppColors.primary),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCurrentDeliverySection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Current Delivery', style: AppTextStyles.subHeader),
+        Text("Current Active Route", style: AppTextStyles.subHeader),
         SizedBox(height: 16),
         _buildCurrentDeliveryCard(),
       ],
     );
   }
 
-  Widget _buildAvailableDeliveriesSection() {
+ Widget _buildAvailableDeliveriesSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Available Deliveries', style: AppTextStyles.subHeader),
+            Text("Available Deliveries", style: AppTextStyles.subHeader),
             TextButton(
               onPressed: _refreshDeliveries,
-              child: Text('Refresh', style: TextStyle(color: AppColors.primary)),
-            ),
+              child: Text("Refresh", style: TextStyle(color: AppColors.primary)),
+            )
           ],
         ),
         SizedBox(height: 16),
@@ -495,9 +543,8 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
                   Icon(Icons.inbox, size: 64, color: Colors.grey),
                   SizedBox(height: 16),
                   Text(
-                    'No deliveries available',
-                    style: TextStyle(color: Colors.grey),
-                  ),
+                    "No new deliveries available",
+                    style: TextStyle(color: Colors.grey)),
                 ],
               ),
             ),
@@ -514,20 +561,53 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
     );
   }
 
+  Widget _buildAcceptedDeliveriesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Accepted Deliveries", style: AppTextStyles.subHeader),
+        SizedBox(height: 16),
+        if (_acceptedDeliveries.isEmpty)
+          Center(
+            child: Padding(
+              padding: EdgeInsets.all(32),
+              child: Column(
+                children: [
+                  Icon(Icons.check_circle_outline, size: 64, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text(
+                    "No deliveries accepted yet.",
+                    style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            ),
+          )
+        else
+          ...List.generate(_acceptedDeliveries.length, (index) {
+            final delivery = _acceptedDeliveries[index];
+            return Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: _buildAcceptedDeliveryCard(delivery),
+            );
+          }),
+      ],
+    );
+  }
+
   Widget _buildRecentDeliveriesSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Recent Deliveries', style: AppTextStyles.subHeader),
+        Text("Recent Deliveries", style: AppTextStyles.subHeader),
         SizedBox(height: 16),
         ...List.generate(_recentDeliveries.length, (index) {
           final delivery = _recentDeliveries[index];
           return Padding(
             padding: EdgeInsets.only(bottom: 12),
             child: _buildRecentDeliveryCard(
-              delivery['route'],
-              delivery['earning'],
-              delivery['status'],
+              delivery["route"],
+              delivery["earning"],
+              delivery["status"],
             ),
           );
         }),
@@ -593,15 +673,15 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
     );
   }
 
-  Widget _buildDeliveryCard(Map<String, dynamic> delivery) {
+  Widget _buildDeliveryCard(DeliveryLocation delivery) {
     return Container(
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: delivery['isUrgent'] ? AppColors.warning : Colors.grey.withOpacity(0.2),
-          width: delivery['isUrgent'] ? 2 : 1,
+          color: delivery.isPickup ? AppColors.warning : Colors.grey.withOpacity(0.2),
+          width: delivery.isPickup ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
@@ -618,11 +698,11 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
             children: [
               Expanded(
                 child: Text(
-                  delivery['route'],
+                  delivery.name + (delivery.isPickup ? " (Pickup)" : " (Dropoff)"),
                   style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold),
                 ),
               ),
-              if (delivery['isUrgent'])
+              if (delivery.isPickup)
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
@@ -630,7 +710,7 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    'URGENT',
+                    "PICKUP",
                     style: TextStyle(
                       color: AppColors.warning,
                       fontSize: 10,
@@ -641,7 +721,7 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
             ],
           ),
           SizedBox(height: 8),
-          Text(delivery['items'], style: TextStyle(color: Colors.grey)),
+          Text(delivery.address, style: TextStyle(color: Colors.grey)),
           SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -651,20 +731,16 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
                   Icon(Icons.account_balance_wallet, color: AppColors.success, size: 16),
                   SizedBox(width: 4),
                   Text(
-                    'UGX ${delivery['earning']}',
+                    "UGX ${delivery.earning}",
                     style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
               Row(
                 children: [
-                  Icon(Icons.route, color: Colors.grey, size: 16),
-                  SizedBox(width: 4),
-                  Text('${delivery['distance']} km', style: TextStyle(color: Colors.grey)),
-                  SizedBox(width: 12),
                   Icon(Icons.access_time, color: Colors.grey, size: 16),
                   SizedBox(width: 4),
-                  Text('${delivery['time']} min', style: TextStyle(color: Colors.grey)),
+                  Text("Est. Time: ${delivery.estimatedTime?.minute ?? "N/A"} min", style: TextStyle(color: Colors.grey)),
                 ],
               ),
             ],
@@ -682,7 +758,7 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
                 ),
               ),
               child: Text(
-                _isOnline ? 'Accept Delivery' : 'Go Online First',
+                _isOnline ? "Accept Delivery" : "Go Online First",
                 style: AppTextStyles.button,
               ),
             ),
@@ -692,89 +768,67 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
     );
   }
 
-  Widget _buildCurrentDeliveryCard() {
-    if (_currentDelivery == null) return SizedBox.shrink();
-
+  Widget _buildAcceptedDeliveryCard(DeliveryLocation delivery) {
     return Container(
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.1),
+        color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary, width: 2),
+        border: Border.all(
+          color: Colors.blue.withOpacity(0.2),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 4,
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.local_shipping, color: AppColors.primary),
-              SizedBox(width: 8),
-              Text(
-                'Active Delivery',
-                style: AppTextStyles.body.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
+              Expanded(
+                child: Text(
+                  delivery.name + (delivery.isPickup ? " (Pickup)" : " (Dropoff)"),
+                  style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  "ACCEPTED",
+                  style: TextStyle(
+                    color: Colors.blue,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
           ),
-          SizedBox(height: 12),
-          Text(
-            _currentDelivery!['route'],
-            style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold),
-          ),
-          SizedBox(height: 4),
-          Text(_currentDelivery!['items'], style: TextStyle(color: Colors.grey)),
+          SizedBox(height: 8),
+          Text(delivery.address, style: TextStyle(color: Colors.grey)),
           SizedBox(height: 12),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(Icons.account_balance_wallet, color: AppColors.success, size: 16),
-              SizedBox(width: 4),
-              Text(
-                'UGX ${_currentDelivery!['earning']}',
-                style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold),
-              ),
-              Spacer(),
-              Icon(Icons.access_time, color: Colors.grey, size: 16),
-              SizedBox(width: 4),
-              Text(
-                '${_currentDelivery!['timeRemaining']} min remaining',
-                style: TextStyle(color: Colors.grey),
-              ),
-            ],
-          ),
-          SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _startNavigation,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.success,
-                    padding: EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+              Row(
+                children: [
+                  Icon(Icons.account_balance_wallet, color: AppColors.success, size: 16),
+                  SizedBox(width: 4),
+                  Text(
+                    "UGX ${delivery.earning}",
+                    style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold),
                   ),
-                  child: Text('Navigate', style: AppTextStyles.button),
-                ),
-              ),
-              SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _callCustomer,
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: AppColors.primary),
-                    padding: EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text(
-                    'Call Customer',
-                    style: TextStyle(color: AppColors.primary),
-                  ),
-                ),
+                ],
               ),
             ],
           ),
@@ -782,7 +836,7 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
       ),
     );
   }
-
+  
   Widget _buildRecentDeliveryCard(String route, int earning, String status) {
     return Container(
       padding: EdgeInsets.all(16),
@@ -812,7 +866,7 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
             ),
           ),
           Text(
-            'UGX $earning',
+            "UGX $earning",
             style: TextStyle(
               color: AppColors.success,
               fontWeight: FontWeight.bold,
@@ -832,18 +886,19 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
       items: [
         BottomNavigationBarItem(
           icon: Icon(Icons.home),
-          label: 'Home',
+          label: "Home",
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.local_shipping),
-          label: 'Deliveries',
+          label: "Deliveries",
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.person),
-          label: 'Profile',
+          label: "Profile",
         ),
       ],
       onTap: _handleBottomNavTap,
     );
   }
 }
+
