@@ -22,6 +22,8 @@ class AddMenuItemForm extends StatefulWidget {
 class _AddMenuItemFormState extends State<AddMenuItemForm> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController(); // ✅ Added Controller
+
   final ImagePicker _picker = ImagePicker();
 
   String? selectedCategory;
@@ -164,6 +166,7 @@ class _AddMenuItemFormState extends State<AddMenuItemForm> {
         'price': price,
         'type': selectedCategory,
         'status': selectedAvailability,
+        'description': _descriptionController.text.trim(), // ✅ Save description
         'imageUrl': imageUrl,
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -253,6 +256,18 @@ class _AddMenuItemFormState extends State<AddMenuItemForm> {
               onChanged: (value) => setState(() => selectedAvailability = value),
             ),
             const SizedBox(height: 16),
+            Text("Description (Optional)", style: AppTextStyles.body), // ✅ Description field
+            const SizedBox(height: 4),
+            TextField(
+              controller: _descriptionController,
+              style: AppTextStyles.body,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: "e.g., A delicious pizza with fresh toppings",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
             Text("Item Image", style: AppTextStyles.body),
             const SizedBox(height: 4),
             GestureDetector(
@@ -319,6 +334,7 @@ class _AddMenuItemFormState extends State<AddMenuItemForm> {
   void dispose() {
     _nameController.dispose();
     _priceController.dispose();
+    _descriptionController.dispose(); // ✅ Dispose description controller
     super.dispose();
   }
 }
