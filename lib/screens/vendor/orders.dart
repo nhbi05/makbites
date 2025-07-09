@@ -6,11 +6,6 @@ import 'package:makbites/screens/vendor/set_preparation_time.dart';
 class OrdersPage extends StatefulWidget {
   final String vendorRestaurantId;
 
-  // OrdersPage({String? vendorRestaurantId})
-  //     : vendorRestaurantId = (vendorRestaurantId == null || vendorRestaurantId.trim().isEmpty)
-  //     ? "Ssalongo's"
-  //     : vendorRestaurantId;
-
   OrdersPage({required this.vendorRestaurantId});
 
   @override
@@ -24,6 +19,21 @@ class _OrdersPageState extends State<OrdersPage> {
   void initState() {
     super.initState();
     _loadUsers();
+  }
+
+  void _showSetPreparationTimeDialog(String orderId) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: SetPreparationTimePage(
+          orderId: orderId,
+          vendorRestaurantId: widget.vendorRestaurantId,
+        ),
+      ),
+    );
   }
 
   Future<void> _loadUsers() async {
@@ -182,33 +192,10 @@ class _OrdersPageState extends State<OrdersPage> {
                       final mealType = orderData['mealType'] ?? '';
                       final paymentMethod = orderData['paymentMethod'] ?? '';
 
-                      return GestureDetector(
-                        onTap: () {
-                          print('🟡 Order tapped with status: $status');
-
-                          if (status == "Pending") {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => SetPreparationTimePage(
-                                  orderId: orderId,
-                                  vendorRestaurantId: widget.vendorRestaurantId,
-                                ),
-                              ),
-                            ).then((result) {
-                              if (result == true) {
-                                setState(() {});
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Order marked as "Start Preparing"!')),
-                                );
-                              }
-                            });
-                          } else if (status == "Start Preparing") {
-                            updateOrderStatus(orderId, status); // mark as Completed
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Order marked as "Completed"!')),
-                            );
-                          } else {
+                      return Card(
+                        margin: EdgeInsets.symmetric(vertical: 8),
+                        child: InkWell(
+                          onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -220,30 +207,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                 ),
                               ),
                             );
-                          }
-                        },
-
-                        //     ).then((result) {
-                        //       setState(() {}); // Refresh after prep time set
-                        //     });
-                        //   } else if (status == "Start Preparing") {
-                        //     updateOrderStatus(orderId, status); // Move to Completed
-                        //   } else {
-                        //     Navigator.push(
-                        //       context,
-                        //       MaterialPageRoute(
-                        //         builder: (_) => OrderDetailPage(
-                        //           orderId: orderId,
-                        //           displayOrderId: displayOrderId,
-                        //           orderData: orderData,
-                        //           customerName: customerName,
-                        //         ),
-                        //       ),
-                        //     );
-                        //   }
-                        // },
-                        child: Card(
-                          margin: EdgeInsets.symmetric(vertical: 8),
+                          },
                           child: Padding(
                             padding: const EdgeInsets.all(12.0),
                             child: Column(
@@ -268,40 +232,52 @@ class _OrdersPageState extends State<OrdersPage> {
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Container(
-                                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: status == "Completed"
-                                            ? Colors.green
-                                            : status == "Start Preparing"
-                                            ? Colors.orange
-                                            : Colors.blueAccent,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            status == "Completed"
-                                                ? Icons.check
-                                                : status == "Start Preparing"
-                                                ? Icons.access_time
-                                                : Icons.fiber_new,
-                                            color: Colors.white,
-                                            size: 16,
-                                          ),
-                                          SizedBox(width: 4),
-                                          Text(status, style: TextStyle(color: Colors.white)),
-                                        ],
+                                    GestureDetector(
+                                      onTap: () {
+                                        if (status == "Pending") {
+                                          _showSetPreparationTimeDialog(orderId);
+                                        } else if (status == "Start Preparing") {
+                                          updateOrderStatus(orderId, status);
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Order marked as "Completed"!')),
+                                          );
+                                        }
+                                      },
+                                      child: Container(
+                                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: status == "Completed"
+                                              ? Colors.green
+                                              : status == "Start Preparing"
+                                              ? Colors.orange
+                                              : Colors.blueAccent,
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              status == "Completed"
+                                                  ? Icons.check
+                                                  : status == "Start Preparing"
+                                                  ? Icons.access_time
+                                                  : Icons.fiber_new,
+                                              color: Colors.white,
+                                              size: 16,
+                                            ),
+                                            SizedBox(width: 4),
+                                            Text(status, style: TextStyle(color: Colors.white)),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                     Text("Shs. $price", style: TextStyle(fontWeight: FontWeight.bold)),
                                   ],
                                 ),
+
                               ],
                             ),
                           ),
                         ),
-
                       );
                     },
                   ),
