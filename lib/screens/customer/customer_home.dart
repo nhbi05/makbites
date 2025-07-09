@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'order_history_screen.dart';
 import '../../config/routes.dart';
 import 'package:geolocator/geolocator.dart';
+import 'browse_restaurants_screen.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   @override
@@ -223,7 +224,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         if (title.contains('Schedule')) {
           Navigator.pushNamed(context, AppRoutes.weeklyScheduleSetup);
         } else if (title.contains('Browse')) {
-          // Navigate to restaurant browse
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => BrowseRestaurantsScreen()),
+          );
         } else if (title.contains('History')) {
           Navigator.push(
             context,
