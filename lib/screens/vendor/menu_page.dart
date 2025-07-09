@@ -267,18 +267,24 @@ class _MenuPageState extends State<MenuPage> with SingleTickerProviderStateMixin
                     ),
                   ),
                   const SizedBox(height: 8),
+                  // ✅ Status Badge Added Here:
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: item['status'] == 'Available' ? Colors.green : Colors.red,
-                      borderRadius: BorderRadius.circular(6),
+                      color: (item['status'] == 'Available'
+                          ? Colors.green
+                          : Colors.grey)
+                          .withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                     child: Text(
                       item['status'] ?? 'Unknown',
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: item['status'] == 'Available'
+                            ? Colors.green
+                            : Colors.grey,
                         fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
@@ -299,7 +305,9 @@ class _MenuPageState extends State<MenuPage> with SingleTickerProviderStateMixin
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     ),
                     child: Text(
-                      item['status'] == 'Available' ? "Mark Unavailable" : "Mark Available",
+                      item['status'] == 'Available'
+                          ? "Mark Unavailable"
+                          : "Mark Available",
                       style: const TextStyle(fontSize: 10),
                       textAlign: TextAlign.center,
                     ),
@@ -311,7 +319,7 @@ class _MenuPageState extends State<MenuPage> with SingleTickerProviderStateMixin
                   child: ElevatedButton(
                     onPressed: () => _deleteItem(docId, item['name']),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
+                      backgroundColor: AppColors.primary,
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     ),
                     child: const Text(

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 import '../../constants/app_colours.dart';
 import '../../constants/text_styles.dart';
 
@@ -15,7 +14,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
   late User _user;
-  Map<String, dynamic>? _riderData;
+  Map<String, dynamic> _userData = {};
   bool _isLoading = true;
   bool _isEditing = false;
   
@@ -27,44 +26,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _user = _auth.currentUser!;
     _loadUserData();
   }
 
   Future<void> _loadUserData() async {
     try {
-      _user = _auth.currentUser!;
+      setState(() => _isLoading = true);
       
-      DocumentSnapshot riderDoc = await _firestore
-          .collection('delivery_riders')
-          .doc(_user.uid)
-          .get();
-          
-      if (riderDoc.exists) {
-        setState(() {
-          _riderData = riderDoc.data() as Map<String, dynamic>;
-          _nameController.text = _riderData?['name'] ?? '';
-          _phoneController.text = _riderData?['phone'] ?? '';
-          _emailController.text = _riderData?['email'] ?? _user.email ?? '';
-          _isLoading = false;
-        });
+      // Fetch from users collection
+      final userDoc = await _firestore.collection('users').doc(_user.uid).get();
+
+      if (userDoc.exists) {
+        _userData = userDoc.data()!;
+        _nameController.text = _userData['name'] ?? '';
+        _phoneController.text = _userData['phone'] ?? '';
+        _emailController.text = _userData['email'] ?? _user.email ?? '';
+
       } else {
-        // Create empty profile if doesn't exist
-        setState(() {
-          _riderData = {
-            'name': '',
-            'phone': '',
-            'email': _user.email,
-            'total_deliveries': 0,
-            'created_at': Timestamp.now(),
-            'updated_at': Timestamp.now(),
-          };
-          _isLoading = false;
-        });
+        // Initialize new rider document if doesn't exist
+        _userData = {
+          'userType': 'rider',
+          'name': '',
+          'phoneNumber': '',
+          'email': _user.email ?? '',
+          'totalDeliveries': 0,
+          'isOnline': false,
+          'createdAt': Timestamp.now(),
+        };
       }
+
+      setState(() => _isLoading = false);
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error loading profile: ${e.toString()}')),
       );
@@ -73,32 +67,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _saveProfile() async {
     try {
-      setState(() {
-        _isLoading = true;
-      });
+      setState(() => _isLoading = true);
       
-      await _firestore
-          .collection('delivery_riders')
-          .doc(_user.uid)
-          .set({
-            'name': _nameController.text,
-            'phone': _phoneController.text,
-            'email': _emailController.text,
-            'updated_at': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-          
-      setState(() {
-        _isEditing = false;
-        _isLoading = false;
-      });
+      // Update user document
+      await _firestore.collection('users').doc(_user.uid).set({
+        'userType': 'rider',
+        'name': _nameController.text,
+        'phone': _phoneController.text,
+        'email': _emailController.text,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // Refresh data
+      await _loadUserData();
+      setState(() => _isEditing = false);
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Profile updated successfully')),
       );
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error saving profile: ${e.toString()}')),
       );
@@ -129,21 +117,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               padding: EdgeInsets.all(16),
               child: Column(
                 children: [
-                  // Profile Header
                   _buildProfileHeader(),
                   SizedBox(height: 24),
-                  
-                  // Stats Cards
                   _buildStatsSection(),
                   SizedBox(height: 24),
-                  
-                  // Profile Form
                   _buildProfileForm(),
-                  
-                  // Account Info
-                  _buildAccountInfoSection(),
-                  
-                  // Logout Button
                   SizedBox(height: 32),
                   _buildLogoutButton(),
                 ],
@@ -166,36 +144,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         SizedBox(height: 16),
         Text(
-          _riderData?['name'] ?? 'No name',
+          _userData['name']?.isNotEmpty == true 
+              ? _userData['name'] 
+              : 'No name provided',
           style: AppTextStyles.header,
         ),
         SizedBox(height: 4),
         Text(
-          _riderData?['email'] ?? _user.email ?? '',
+          _userData['email'] ?? _user.email ?? '',
           style: TextStyle(color: Colors.grey),
         ),
+        if (_userData['userType'] == 'rider')
+          Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Chip(
+              label: Text('Delivery Rider', 
+                style: TextStyle(color: Colors.white)),
+              backgroundColor: AppColors.primary,
+            ),
+          ),
       ],
     );
   }
 
   Widget _buildStatsSection() {
+    if (_userData['userType'] != 'rider') return SizedBox.shrink();
+    
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
             'Deliveries',
-            '${_riderData?['total_deliveries'] ?? '0'}',
+            '${_userData['totalDeliveries'] ?? 0}',
             Icons.local_shipping,
             AppColors.success,
           ),
         ),
+       
         SizedBox(width: 12),
         Expanded(
           child: _buildStatCard(
             'Status',
-            _riderData?['is_online'] == true ? 'Online' : 'Offline',
-            _riderData?['is_online'] == true ? Icons.check_circle : Icons.offline_bolt,
-            _riderData?['is_online'] == true ? AppColors.success : Colors.orange,
+            (_userData['isOnline'] ?? false) ? 'Online' : 'Offline',
+            (_userData['isOnline'] ?? false) ? Icons.check_circle : Icons.offline_bolt,
+            (_userData['isOnline'] ?? false) ? AppColors.success : Colors.orange,
           ),
         ),
       ],
@@ -272,42 +264,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           keyboardType: TextInputType.emailAddress,
           enabled: _isEditing,
         ),
-      ],
-    );
-  }
-
-  Widget _buildAccountInfoSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(height: 24),
-        Text('Account Information', style: AppTextStyles.subHeader),
-        SizedBox(height: 16),
-        ListTile(
-          leading: Icon(Icons.person_outline, color: Colors.grey),
-          title: Text('Rider ID'),
-          subtitle: Text(_user.uid),
-        ),
-        ListTile(
-          leading: Icon(Icons.calendar_today, color: Colors.grey),
-          title: Text('Member Since'),
-          subtitle: Text(
-            _riderData?['created_at'] != null 
-                ? DateFormat('dd MMM yyyy').format(
-                    (_riderData?['created_at'] as Timestamp).toDate())
-                : 'Not available',
-          ),
-        ),
-        ListTile(
-          leading: Icon(Icons.update, color: Colors.grey),
-          title: Text('Last Updated'),
-          subtitle: Text(
-            _riderData?['updated_at'] != null 
-                ? DateFormat('dd MMM yyyy HH:mm').format(
-                    (_riderData?['updated_at'] as Timestamp).toDate())
-                : 'Not available',
-          ),
-        ),
+        if (_userData['userType'] == 'rider') ...[
+        ],
       ],
     );
   }

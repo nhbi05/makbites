@@ -18,14 +18,38 @@ dependencies:
   firebase_auth: ^5.6.0    
   cloud_firestore: ^5.6.9  
   google_sign_in: ^7.0.0 
-  google_maps_flutter: ^2.1.5
   url_launcher: ^6.1.5
-  intl: ^0.18.1 
+  intl: ^0.18.1  
+  table_calendar: ^3.0.9
+  provider: ^6.1.1
+  location: ^5.0.3 
+  permission_handler: ^11.3.1
+ 
+  flutter_polyline_points: ^2.0.0
+  geolocator: ^9.0.2
 
   cupertino_icons: ^1.0.8
   firebase_storage: ^12.4.9
   image_picker: ^1.1.2
   cached_network_image: ^3.4.1
+  
+  # Google Maps integration
+  google_maps_flutter: ^2.5.0
+  google_maps_flutter_web: ^0.5.4+2
+  google_maps_flutter_android: ^2.5.3
+  google_maps_flutter_ios: ^2.3.3
+  geocoding: ^2.1.1
+  
+  # HTTP requests for Google APIs
+  http: ^1.1.2
+  dio: ^5.4.0
+  
+  # Polyline decoding for route visualization
+  google_polyline_algorithm: ^3.1.0
+  
+  
+  # Additional utilities
+  uuid: ^4.2.1
 
 dev_dependencies:
   flutter_test:
@@ -39,6 +63,11 @@ flutter:
   assets:
     - assets/images/logo.png
     - assets/images/homepage.png
+    - assets/images/freddoz.png
+    - assets/images/freshhot.png
+    - assets/images/Lumumbacafe.png
+    - assets/images/MKcatering.png
+    - assets/images/ssalongo's.png
 
   fonts:
     - family: Creepster

@@ -12,7 +12,20 @@
           "package_name": "com.example.makbites"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "798959788724-ijl2h9p2dop2r36c2240b1rm885cacc0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.makbites",
+            "certificate_hash": "f071e206ea9276762cb22322f5fec34f142937cd"
+          }
+        },
+        {
+          "client_id": "798959788724-9488m7fjh6v04hn7u1s90um8ivdoipva.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBfWnbrecUr1dyqh3Vi6jcTbKKjcWAXOP4"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "798959788724-9488m7fjh6v04hn7u1s90um8ivdoipva.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "798959788724-lgqbgiqkhk1hq9mup7elqn6vlcsmd8lo.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.makbites"
+              }
+            }
+          ]
         }
       }
     }

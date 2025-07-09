@@ -1,185 +1,236 @@
 import 'package:flutter/material.dart';
-import 'models/orders_model.dart';//  Your model
-
- //  Your model
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart'; // For date formatting, add intl dependency in pubspec.yaml
 
 class OrdersPage extends StatefulWidget {
+  final String vendorRestaurantId;
+
+  OrdersPage({required this.vendorRestaurantId});
+
   @override
   _OrdersPageState createState() => _OrdersPageState();
 }
 
 class _OrdersPageState extends State<OrdersPage> {
-  List<Order> orders = [
-    Order(
-      customerName: "Khana",
-      orderId: "Order #001",
-      timeAgo: "1 hour ago",
-      items: ["Rice", "Peas(x2)"],
-      status: "Completed",
-      price: 3000,
-    ),
-    Order(
-      customerName: "Jamimah",
-      orderId: "Order #002",
-      timeAgo: "Just now",
-      items: ["Pilau rice"],
-      status: "Start Preparing",
-      price: 6000,
-    ),
-    Order(
-      customerName: "Dalton",
-      orderId: "Order #003",
-      timeAgo: "20 minutes ago",
-      items: ["Katogo"],
-      status: "Pending",
-      price: 2500,
-    ),
-    Order(
-      customerName: "Bella",
-      orderId: "Order #004",
-      timeAgo: "20 minutes ago",
-      items: ["Rice", "meat"],
-      status: "Start Preparing",
-      price: 5000,
-    ),
-    Order(
-      customerName: "Daniella",
-      orderId: "Order #005",
-      timeAgo: "10 minutes ago",
-      items: ["Katogo"],
-      status: "Pending",
-      price: 2500,
-    ),
-  ];
+  Map<String, String> _userIdToName = {};
 
-  int get totalOrders => orders.length;
-  int get completedOrders => orders.where((o) => o.status == "Completed").length;
-  int get cancelledOrders => 1; // You can improve this later
-  int get totalRevenue => orders.fold(0, (sum, o) => sum + o.price);
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
+  }
 
-  void updateOrderStatus(int index) {
-    setState(() {
-      if (orders[index].status == "New" || orders[index].status == "Pending") {
-        orders[index].status = "Start Preparing";
-      } else if (orders[index].status == "Start Preparing") {
-        orders[index].status = "Completed";
+  Future<void> _loadUsers() async {
+    final userSnapshot = await FirebaseFirestore.instance.collection('users').get();
+    final usersMap = <String, String>{};
+    for (var doc in userSnapshot.docs) {
+      final data = doc.data();
+      if (data.containsKey('uid') && data.containsKey('name')) {
+        usersMap[data['uid']] = data['name'];
       }
+    }
+    setState(() {
+      _userIdToName = usersMap;
     });
   }
 
-  void cancelOrder(int index) {
-    setState(() {
-      orders.removeAt(index);
+  void updateOrderStatus(String orderId, String currentStatus) async {
+    String newStatus;
+    if (currentStatus == "New" || currentStatus == "Pending") {
+      newStatus = "Start Preparing";
+    } else if (currentStatus == "Start Preparing") {
+      newStatus = "Completed";
+    } else {
+      newStatus = currentStatus; // No change
+    }
+
+    await FirebaseFirestore.instance.collection('orders').doc(orderId).update({
+      'status': newStatus,
     });
+  }
+
+  void cancelOrder(String orderId) async {
+    await FirebaseFirestore.instance.collection('orders').doc(orderId).update({
+      'status': 'Cancelled',
+    });
+  }
+
+  void _showCancelDialog(BuildContext context, String orderId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text("Cancel Order"),
+        content: Text("Are you sure you want to cancel this order?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text("No"),
+          ),
+          TextButton(
+            onPressed: () {
+              cancelOrder(orderId);
+              Navigator.pop(ctx);
+            },
+            child: Text("Yes"),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // appBar: AppBar(
-      //   backgroundColor: Colors.red,
-      //   title: Text(
-      //     "Muk Bites",
-      //     style: TextStyle(
-      //       fontWeight: FontWeight.bold,
-      //       fontSize: 30,
-      //       color: Colors.white,
-      //     ),
-      //   ),
-      // ),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Orders details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-            Text("Track and manage all your restaurant orders here!\n"),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('orders')
+              .where('restaurant', isEqualTo: widget.vendorRestaurantId)
+              .orderBy('serverTimestamp', descending: true)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(child: CircularProgressIndicator());
+            }
+
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return Center(child: Text('No orders found.'));
+            }
+
+            final orders = snapshot.data!.docs;
+
+            int totalOrders = orders.length;
+            int completedOrders = orders.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              return data.containsKey('status') && data['status'] == "Completed";
+            }).length;
+
+            int cancelledOrders = orders.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              return data.containsKey('status') && data['status'] == "Cancelled";
+            }).length;
+
+            int totalRevenue = orders.fold(0, (sum, doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final price = data['foodPrice'] ?? 0;
+              return sum + (price is num ? price.toInt() : 0);
+            });
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _infoCard("Total orders", totalOrders.toString()),
-                _infoCard("Completed", completedOrders.toString()),
-              ],
-            ),
-            SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _infoCard("Cancelled", cancelledOrders.toString()),
-                _infoCard("Total Revenue", "shs.$totalRevenue"),
-              ],
-            ),
-            SizedBox(height: 16),
-            Text("Orders", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-            Expanded(
-              child: ListView.builder(
-                itemCount: orders.length,
-                itemBuilder: (context, index) {
-                  final order = orders[index];
-                  return GestureDetector(
-                    onTap: () => updateOrderStatus(index),
-                    child: Card(
-                      margin: EdgeInsets.symmetric(vertical: 8),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Text("Orders details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                Text("Track and manage all your restaurant orders here!\n"),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _infoCard("Total orders", totalOrders.toString()),
+                    _infoCard("Completed", completedOrders.toString()),
+                  ],
+                ),
+                SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _infoCard("Cancelled", cancelledOrders.toString()),
+                    _infoCard("Total Revenue", "shs.$totalRevenue"),
+                  ],
+                ),
+                SizedBox(height: 16),
+                Text("Orders", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: orders.length,
+                    itemBuilder: (context, index) {
+                      final orderDoc = orders[index];
+                      final orderData = orderDoc.data() as Map<String, dynamic>;
+
+                      final userId = orderData['userId'] ?? 'Unknown';
+                      final customerName = _userIdToName[userId] ?? userId;
+
+                      final orderId = orderDoc.id;
+
+                      final timestamp = orderData['clientTimestamp'];
+                      final orderTime = (timestamp != null && timestamp is Timestamp)
+                          ? DateFormat('yyyy-MM-dd – kk:mm').format(timestamp.toDate())
+                          : 'Unknown time';
+
+                      final foodItem = orderData['food'] ?? 'No items';
+                      final status = orderData['status'] ?? 'Pending';
+                      final price = orderData['foodPrice'] ?? 0;
+
+                      final mealType = orderData['mealType'] ?? '';
+                      final paymentMethod = orderData['paymentMethod'] ?? '';
+
+                      return GestureDetector(
+                        onTap: () => updateOrderStatus(orderId, status),
+                        child: Card(
+                          margin: EdgeInsets.symmetric(vertical: 8),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(order.customerName, style: TextStyle(fontWeight: FontWeight.bold)),
-                                IconButton(
-                                  icon: Icon(Icons.cancel, color: Colors.red),
-                                  onPressed: () => _showCancelDialog(context, index),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(customerName, style: TextStyle(fontWeight: FontWeight.bold)),
+                                    IconButton(
+                                      icon: Icon(Icons.cancel, color: Colors.red),
+                                      onPressed: () => _showCancelDialog(context, orderId),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                            Text("${order.orderId} • ${order.timeAgo}"),
-                            SizedBox(height: 4),
-                            ...order.items.map((item) => Text(item)).toList(),
-                            SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: order.status == "Completed"
-                                        ? Colors.green
-                                        : order.status == "Start Preparing"
-                                        ? Colors.orange
-                                        : Colors.blueAccent,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        order.status == "Completed"
-                                            ? Icons.check
-                                            : order.status == "Start Preparing"
-                                            ? Icons.access_time
-                                            : Icons.fiber_new,
-                                        color: Colors.white,
-                                        size: 16,
+                                Text("$orderId • $orderTime"),
+                                SizedBox(height: 4),
+                                Text("Food: $foodItem"),
+                                Text("Meal Type: $mealType"),
+                                Text("Payment: $paymentMethod"),
+                                SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Container(
+                                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: status == "Completed"
+                                            ? Colors.green
+                                            : status == "Start Preparing"
+                                            ? Colors.orange
+                                            : Colors.blueAccent,
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
-                                      SizedBox(width: 4),
-                                      Text(order.status, style: TextStyle(color: Colors.white)),
-                                    ],
-                                  ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            status == "Completed"
+                                                ? Icons.check
+                                                : status == "Start Preparing"
+                                                ? Icons.access_time
+                                                : Icons.fiber_new,
+                                            color: Colors.white,
+                                            size: 16,
+                                          ),
+                                          SizedBox(width: 4),
+                                          Text(status, style: TextStyle(color: Colors.white)),
+                                        ],
+                                      ),
+                                    ),
+                                    Text("Shs. $price", style: TextStyle(fontWeight: FontWeight.bold)),
+                                  ],
                                 ),
-                                Text("Shs. ${order.price}", style: TextStyle(fontWeight: FontWeight.bold)),
                               ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -199,29 +250,6 @@ class _OrdersPageState extends State<OrdersPage> {
           Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
           SizedBox(height: 4),
           Text(value),
-        ],
-      ),
-    );
-  }
-
-  void _showCancelDialog(BuildContext context, int index) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text("Cancel Order"),
-        content: Text("Are you sure you want to cancel this order?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text("No"),
-          ),
-          TextButton(
-            onPressed: () {
-              cancelOrder(index);
-              Navigator.pop(ctx);
-            },
-            child: Text("Yes"),
-          ),
         ],
       ),
     );
