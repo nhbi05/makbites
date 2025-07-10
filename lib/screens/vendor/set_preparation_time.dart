@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 
 class SetPreparationTimePage extends StatefulWidget {
   final String orderId;
-
-  /// This can be the restaurant **ID** or the **name** — we’ll handle both.
   final String vendorRestaurantIdOrName;
 
   const SetPreparationTimePage({
@@ -38,24 +36,20 @@ class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
     _resolveRestaurantIdAndFetchRiders();
   }
 
-  /// Step 1: Figure out the actual restaurant Firestore doc ID
   Future<void> _resolveRestaurantIdAndFetchRiders() async {
     setState(() {
       _isLoadingRiders = true;
     });
 
     try {
-      // Try to get the restaurant doc by ID first
       final doc = await FirebaseFirestore.instance
           .collection('restaurants')
           .doc(widget.vendorRestaurantIdOrName)
           .get();
 
       if (doc.exists) {
-        // It is already the ID
         _restaurantDocId = doc.id;
       } else {
-        // Not an ID, so look up by name
         final snapshot = await FirebaseFirestore.instance
             .collection('restaurants')
             .where('name', isEqualTo: widget.vendorRestaurantIdOrName)
@@ -82,7 +76,6 @@ class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
     }
   }
 
-  /// Step 2: Fetch riders using the resolved restaurant doc ID
   Future<void> _fetchRiders() async {
     if (_restaurantDocId == null) return;
 
@@ -97,6 +90,7 @@ class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
         return {
           'id': doc.id,
           'name': data['name'] ?? 'Unnamed',
+          'isOnline': data['isOnline'] ?? false,
         };
       }).toList();
 
@@ -144,13 +138,14 @@ class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
         'assignedRiderId': selectedRiderId,
         'assignedRiderName': selectedRider['name'],
       });
-      //udpate the total delivery field
+
       await FirebaseFirestore.instance
           .collection('delivery_riders')
           .doc(selectedRiderId)
           .update({
         'total_deliveries': FieldValue.increment(1),
       });
+
       Navigator.pop(context, true);
     } catch (e) {
       _showSnackBar('Error: Could not update order.');
@@ -213,9 +208,27 @@ class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
         contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
       items: _riders.map((rider) {
+        final isOnline = rider['isOnline'] == true;
         return DropdownMenuItem<String>(
           value: rider['id'],
-          child: Text(rider['name']),
+          child: Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                rider['name'],
+                overflow: TextOverflow.ellipsis,
+              ),
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: isOnline ? Colors.green : Colors.grey,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          ),
         );
       }).toList(),
       onChanged: (value) {
@@ -260,8 +273,9 @@ class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed:
-              (_riders.isEmpty || _isLoadingRiders) ? null : _submitTime,
+              onPressed: (_riders.isEmpty || _isLoadingRiders)
+                  ? null
+                  : _submitTime,
               child: Text("Confirm & Start Preparing"),
             ),
           ),

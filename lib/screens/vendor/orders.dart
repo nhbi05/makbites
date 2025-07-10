@@ -35,12 +35,27 @@ class _OrdersPageState extends State<OrdersPage> {
       ),
     );
 
-    // If dialog succeeded, force a rebuild:
     if (result == true) {
-      setState(() {}); // This will not break the StreamBuilder, but re-evaluates the widget tree.
+      setState(() {});
     }
   }
 
+  void _showOrderDetailDialog(String orderId, String displayOrderId, Map<String, dynamic> orderData, String customerName) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: OrderDetailCard(
+          orderId: orderId,
+          displayOrderId: displayOrderId,
+          orderData: orderData,
+          customerName: customerName,
+        ),
+      ),
+    );
+  }
 
   Future<void> _loadUsers() async {
     final userSnapshot = await FirebaseFirestore.instance.collection('users').get();
@@ -202,17 +217,7 @@ class _OrdersPageState extends State<OrdersPage> {
                         margin: EdgeInsets.symmetric(vertical: 8),
                         child: InkWell(
                           onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => OrderDetailPage(
-                                  orderId: orderId,
-                                  displayOrderId: displayOrderId,
-                                  orderData: orderData,
-                                  customerName: customerName,
-                                ),
-                              ),
-                            );
+                            _showOrderDetailDialog(orderId, displayOrderId, orderData, customerName);
                           },
                           child: Padding(
                             padding: const EdgeInsets.all(12.0),
@@ -279,7 +284,6 @@ class _OrdersPageState extends State<OrdersPage> {
                                     Text("Shs. $price", style: TextStyle(fontWeight: FontWeight.bold)),
                                   ],
                                 ),
-
                               ],
                             ),
                           ),
@@ -316,13 +320,13 @@ class _OrdersPageState extends State<OrdersPage> {
   }
 }
 
-class OrderDetailPage extends StatelessWidget {
+class OrderDetailCard extends StatelessWidget {
   final String orderId;
   final String displayOrderId;
   final Map<String, dynamic> orderData;
   final String customerName;
 
-  const OrderDetailPage({
+  const OrderDetailCard({
     required this.orderId,
     required this.displayOrderId,
     required this.orderData,
@@ -336,33 +340,39 @@ class OrderDetailPage extends StatelessWidget {
         ? DateFormat('yyyy-MM-dd – kk:mm').format(timestamp.toDate())
         : 'Unknown time';
 
-    return Scaffold(
-      appBar: AppBar(title: Text('Order Details')),
-      body: Padding(
+    return Card(
+      elevation: 4,
+      child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Card(
-          elevation: 4,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Order ID: $displayOrderId", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                  SizedBox(height: 12),
-                  Text("Customer: $customerName"),
-                  Text("Food: ${orderData['food'] ?? 'N/A'}"),
-                  Text("Meal Type: ${orderData['mealType'] ?? 'N/A'}"),
-                  Text("Price: Shs. ${orderData['foodPrice'] ?? 'N/A'}"),
-                  Text("Payment Method: ${orderData['paymentMethod'] ?? 'N/A'}"),
-                  Text("Status: ${orderData['status'] ?? 'N/A'}"),
-                  Text("Time: $orderTime"),
-                  SizedBox(height: 20),
-                  if (orderData.containsKey('notes') && (orderData['notes'] as String).trim().isNotEmpty)
-                    Text("Customer Notes:\n${orderData['notes']}", style: TextStyle(fontStyle: FontStyle.italic)),
-                ],
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text("Order ID: $displayOrderId",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              SizedBox(height: 12),
+              Text("Customer: $customerName"),
+              Text("Food: ${orderData['food'] ?? 'N/A'}"),
+              Text("Meal Type: ${orderData['mealType'] ?? 'N/A'}"),
+              Text("Price: Shs. ${orderData['foodPrice'] ?? 'N/A'}"),
+              Text("Payment Method: ${orderData['paymentMethod'] ?? 'N/A'}"),
+              Text("Status: ${orderData['status'] ?? 'N/A'}"),
+              Text("Time: $orderTime"),
+              SizedBox(height: 20),
+              if (orderData.containsKey('notes') &&
+                  (orderData['notes'] as String).trim().isNotEmpty)
+                Text("Customer Notes:\n${orderData['notes']}",
+                    style: TextStyle(fontStyle: FontStyle.italic)),
+              SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text("Close"),
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
