@@ -4,7 +4,6 @@ import '../../constants/text_styles.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-
 class LoginScreen extends StatefulWidget {
   @override
   _LoginScreenState createState() => _LoginScreenState();
@@ -32,16 +31,9 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               SizedBox(height: 40),
               
-              // Welcome Back Section
-              Text(
-                'Welcome Back!',
-                style: AppTextStyles.header,
-              ),
+              Text('Welcome Back!', style: AppTextStyles.header),
               SizedBox(height: 8),
-              Text(
-                'Sign in to continue to MakBites',
-                style: AppTextStyles.body,
-              ),
+              Text('Sign in to continue to MakBites', style: AppTextStyles.body),
               SizedBox(height: 40),
               
               // Email Field
@@ -51,9 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 decoration: InputDecoration(
                   labelText: 'Email',
                   prefixIcon: Icon(Icons.email_outlined, color: AppColors.primary),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide(color: AppColors.primary),
@@ -89,9 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       });
                     },
                   ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide(color: AppColors.primary),
@@ -136,10 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: Text(
-                    'Sign In',
-                    style: AppTextStyles.button,
-                  ),
+                  child: Text('Sign In', style: AppTextStyles.button),
                 ),
               ),
               SizedBox(height: 24),
@@ -148,10 +133,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    "Don't have an account? ",
-                    style: AppTextStyles.body,
-                  ),
+                  Text("Don't have an account? ", style: AppTextStyles.body),
                   TextButton(
                     onPressed: () => Navigator.pushNamed(context, '/signup'),
                     child: Text(
@@ -185,39 +167,39 @@ void _goHome(String role) {
       Navigator.pushReplacementNamed(context, '/customer-home');
   }
 }
-Future<void> _handleSignIn() async {
-  if (_formKey.currentState!.validate()) {
-    try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
 
-      final uid = FirebaseAuth.instance.currentUser!.uid;
-      final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
 
-      final role = snapshot.data()?['role'] ?? 'Customer';
-      _goHome(role);
+  Future<void> _handleSignIn() async {
+    if (_formKey.currentState!.validate()) {
+      try {
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+        );
 
-    } on FirebaseAuthException catch (e) {
-      String message = 'Login failed';
-      if (e.code == 'user-not-found') {
-        message = 'No user found for that email.';
-      } else if (e.code == 'wrong-password') {
-        message = 'Wrong password provided.';
+        final uid = FirebaseAuth.instance.currentUser!.uid;
+        final snapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .get();
+
+        final role = snapshot.data()?['role'] ?? 'customer';
+        _goHome(role);
+
+      } on FirebaseAuthException catch (e) {
+        String message = 'Login failed';
+        if (e.code == 'user-not-found') {
+          message = 'No user found for that email.';
+        } else if (e.code == 'wrong-password') {
+          message = 'Wrong password provided.';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
       }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
     }
   }
-}
-
-
 
   @override
   void dispose() {

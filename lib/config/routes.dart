@@ -6,6 +6,11 @@ import '../screens/auth/signup_screen.dart';
 import '../screens/customer/customer_home.dart';
 import '../screens/vendor/restaurant_home.dart';
 import '../screens/delivery/delivery_home.dart';
+import '../screens/delivery/profiles.dart';
+import '../screens/customer/weekly_schedule_setup.dart';
+import '../screens/delivery/delivery_map_screen.dart';
+import '../models/delivery_location.dart';
+
 
 class AppRoutes {
   // Route names
@@ -16,6 +21,10 @@ class AppRoutes {
   static const String customerHome = '/customer-home';
   static const String restaurantHome = '/restaurant-home';
   static const String deliveryHome = '/delivery-home';
+  static const String deliveryProfile = '/profiles';
+  static const String weeklyScheduleSetup = '/weekly-schedule-setup';
+  static const String deliveryMap = '/navigation';
+
 
   // Route map
   static Map<String, WidgetBuilder> get routes {
@@ -27,7 +36,9 @@ class AppRoutes {
       customerHome: (context) =>  CustomerHomeScreen(),
       restaurantHome: (context) =>  VendorHomePage(),
       deliveryHome: (context) =>  DeliveryHomeScreen(),
-    };
+      deliveryProfile: (context) =>  ProfileScreen(),
+      weeklyScheduleSetup: (context) => WeeklyScheduleSetupScreen(),
+deliveryMap: (context) => DeliveryMapScreen(deliveries: ModalRoute.of(context)!.settings.arguments as List<DeliveryLocation>),    };
   }
 
   // Handle unknown routes
@@ -104,3 +115,4 @@ class CustomPageRoute<T> extends MaterialPageRoute<T> {
     );
   }
 }
+
