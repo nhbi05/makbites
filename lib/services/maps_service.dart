@@ -17,7 +17,7 @@ class MapsService {
   Set<Polyline> _polylines = {};
   
   // Google Maps API key - Replace with your actual API key
-  static const String _googleMapsApiKey = 'YOUR_GOOGLE_MAPS_API_KEY';
+  static const String _googleMapsApiKey = 'AIzaSyAS10x2khf_QHLIGeyWIADDpoGLgaUkln0';
   
   // Getters
   Set<Marker> get markers => _markers;

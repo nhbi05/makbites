@@ -3,6 +3,10 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/delivery_location.dart';
 import '../../constants/app_colours.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 
 class DeliveryMapScreen extends StatefulWidget {
   final List<DeliveryLocation> deliveries;
@@ -20,6 +24,11 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
   int _currentDeliveryIndex = 0;
   bool _showRoute = false;
   LatLngBounds? _deliveryBounds;
+  List<int>? _waypointOrder; // New field to store the optimized order
+  LatLng? _currentLocation;
+  int _currentOptimizedIndex = 0;
+
+  final String _googleApiKey = 'AIzaSyAS10x2khf_QHLIGeyWIADDpoGLgaUkln0'; // <-- Replace with your real API key
 
   @override
   void initState() {
@@ -27,11 +36,43 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
     _initializeMap();
   }
 
-  void _initializeMap() {
+  Future<void> _initializeMap() async {
     if (widget.deliveries.isNotEmpty) {
+      await _getCurrentLocation();
       _createMarkers();
       _calculateBounds();
+      await _optimizeRoute(); // Optimize route when map is initialized
     }
+  }
+
+  Future<void> _getCurrentLocation() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Location services are disabled.')),
+      );
+      return;
+    }
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Location permission denied.')),
+        );
+        return;
+      }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Location permission permanently denied. Please enable it in settings.')),
+      );
+      return;
+    }
+    Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+    setState(() {
+      _currentLocation = LatLng(position.latitude, position.longitude);
+    });
   }
 
   void _createMarkers() {
@@ -122,38 +163,6 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
     }
   }
 
-  void _startNavigationToCurrent() {
-    if (_currentDeliveryIndex >= widget.deliveries.length) return;
-    
-    final delivery = widget.deliveries[_currentDeliveryIndex];
-    final lat = delivery.coordinates.latitude;
-    final lng = delivery.coordinates.longitude;
-    
-    // Open in Google Maps app for navigation
-    final url = 'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving';
-    
-    _launchUrl(url);
-  }
-
-  Future<void> _launchUrl(String url) async {
-    if (await canLaunch(url)) {
-      await launch(url);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not launch navigation')),
-      );
-    }
-  }
-
-  void _callCurrentCustomer() {
-    if (_currentDeliveryIndex >= widget.deliveries.length) return;
-    
-    final phone = widget.deliveries[_currentDeliveryIndex].customerPhone;
-    final url = 'tel:$phone';
-    
-    _launchUrl(url);
-  }
-
   void _nextDelivery() {
     if (_currentDeliveryIndex < widget.deliveries.length - 1) {
       setState(() {
@@ -179,6 +188,67 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
     _mapController.animateCamera(
       CameraUpdate.newLatLngZoom(delivery.coordinates, 15),
     );
+  }
+
+  Future<void> _optimizeRoute() async {
+    if (widget.deliveries.isEmpty || _currentLocation == null) return;
+
+    final origin = '${_currentLocation!.latitude},${_currentLocation!.longitude}';
+    final destination = '${widget.deliveries.last.coordinates.latitude},${widget.deliveries.last.coordinates.longitude}';
+    final waypoints = widget.deliveries
+        .sublist(0, widget.deliveries.length - 1)
+        .map((d) => '${d.coordinates.latitude},${d.coordinates.longitude}')
+        .join('|');
+
+    final url =
+        'https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$destination&waypoints=optimize:true|$waypoints&key=$_googleApiKey';
+
+    try {
+      final response = await http.get(Uri.parse(url));
+      final data = json.decode(response.body);
+
+      if (data['status'] == 'OK') {
+        final route = data['routes'][0];
+        final waypointOrder = List<int>.from(route['waypoint_order']);
+        final polyline = route['overview_polyline']['points'];
+        PolylinePoints polylinePoints = PolylinePoints();
+        List<PointLatLng> result = polylinePoints.decodePolyline(polyline);
+        setState(() {
+          _waypointOrder = waypointOrder;
+          _polylines = {
+            Polyline(
+              polylineId: PolylineId('optimized_route'),
+              color: AppColors.primary,
+              width: 5,
+              points: result.map((p) => LatLng(p.latitude, p.longitude)).toList(),
+            ),
+          };
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Route optimization failed: ${data['status']}')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error optimizing route: $e')),
+      );
+    }
+  }
+
+  Future<void> _launchUrl(String url) async {
+    if (await canLaunch(url)) {
+      await launch(url);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not launch URL')),
+      );
+    }
+  }
+
+  void _callCustomerFor(String phone) {
+    final url = 'tel:$phone';
+    _launchUrl(url);
   }
 
   @override
@@ -210,16 +280,14 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
             myLocationButtonEnabled: true,
             compassEnabled: true,
           ),
-          
-          if (widget.deliveries.isNotEmpty) ...[
-            // Delivery info card
+          if (widget.deliveries.isNotEmpty && _waypointOrder != null && _waypointOrder!.isNotEmpty)
             Positioned(
               bottom: 100,
               left: 16,
               right: 16,
-              child: _buildCurrentDeliveryCard(),
+              child: _buildOptimizedDeliveryCard(),
             ),
-            
+          if (widget.deliveries.isNotEmpty) ...[
             // Navigation controls
             Positioned(
               bottom: 16,
@@ -233,11 +301,9 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
     );
   }
 
-  Widget _buildCurrentDeliveryCard() {
-    if (widget.deliveries.isEmpty) return SizedBox.shrink();
-    
-    final delivery = widget.deliveries[_currentDeliveryIndex];
-    
+  Widget _buildOptimizedDeliveryCard() {
+    if (_waypointOrder == null || _waypointOrder!.isEmpty) return SizedBox.shrink();
+    final delivery = widget.deliveries[_waypointOrder![_currentOptimizedIndex]];
     return Card(
       elevation: 4,
       child: Padding(
@@ -262,7 +328,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
                   ),
                 ),
                 Text(
-                  '${_currentDeliveryIndex + 1}/${widget.deliveries.length}',
+                  'Stop ${_currentOptimizedIndex + 1}/${_waypointOrder!.length}',
                   style: TextStyle(color: Colors.grey),
                 ),
               ],
@@ -297,13 +363,31 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
                   ),
                 ),
                 ElevatedButton.icon(
-                  onPressed: _callCurrentCustomer,
+                  onPressed: () => _callCustomerFor(delivery.customerPhone),
                   icon: Icon(Icons.phone, size: 16),
                   label: Text('Call Customer'),
                   style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
+                    backgroundColor: AppColors.primary,
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: Icon(Icons.arrow_back),
+                  onPressed: _currentOptimizedIndex > 0
+                      ? () => setState(() => _currentOptimizedIndex--)
+                      : null,
+                ),
+                IconButton(
+                  icon: Icon(Icons.arrow_forward),
+                  onPressed: _currentOptimizedIndex < _waypointOrder!.length - 1
+                      ? () => setState(() => _currentOptimizedIndex++)
+                      : null,
                 ),
               ],
             ),
@@ -332,14 +416,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
               color: _showRoute ? AppColors.primary : Colors.grey,
               tooltip: _showRoute ? 'Hide Route' : 'Show Route',
             ),
-            ElevatedButton.icon(
-              onPressed: _startNavigationToCurrent,
-              icon: Icon(Icons.navigation),
-              label: Text('Navigate'),
-              style: ElevatedButton.styleFrom(
-  backgroundColor: AppColors.primary,
-),
-            ),
+            // Navigation button removed
             IconButton(
               icon: Icon(Icons.arrow_forward),
               onPressed: _nextDelivery,

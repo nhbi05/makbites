@@ -12,6 +12,8 @@ class DeliveryLocation {
   final bool isPickup;
   final bool isCompleted;
   final DateTime? estimatedTime;
+  final int? priority; // New field
+  final int? routeIndex; // New field
 
   DeliveryLocation({
     required this.id,
@@ -25,6 +27,8 @@ class DeliveryLocation {
     this.isPickup = false,
     this.isCompleted = false,
     this.estimatedTime,
+    this.priority,
+    this.routeIndex,
   });
 
   factory DeliveryLocation.fromJson(Map<String, dynamic> json) {
@@ -42,6 +46,8 @@ class DeliveryLocation {
       estimatedTime: json['estimatedTime'] != null 
           ? DateTime.parse(json['estimatedTime']) 
           : null,
+      priority: json['priority'],
+      routeIndex: json['routeIndex'],
     );
   }
 
@@ -59,6 +65,8 @@ class DeliveryLocation {
       'isPickup': isPickup,
       'isCompleted': isCompleted,
       'estimatedTime': estimatedTime?.toIso8601String(),
+      'priority': priority,
+      'routeIndex': routeIndex,
     };
   }
 
@@ -74,6 +82,8 @@ class DeliveryLocation {
     bool? isPickup,
     bool? isCompleted,
     DateTime? estimatedTime,
+    int? priority,
+    int? routeIndex,
   }) {
     return DeliveryLocation(
       id: id ?? this.id,
@@ -87,7 +97,10 @@ class DeliveryLocation {
       isPickup: isPickup ?? this.isPickup,
       isCompleted: isCompleted ?? this.isCompleted,
       estimatedTime: estimatedTime ?? this.estimatedTime,
+      priority: priority ?? this.priority,
+      routeIndex: routeIndex ?? this.routeIndex,
     );
   }
 }
+
 

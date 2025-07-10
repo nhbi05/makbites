@@ -5,12 +5,13 @@ class DeliveryRoute {
   final String id;
   final List<DeliveryLocation> locations;
   final List<LatLng> routePoints;
-  final double totalDistance;
+  final double totalDistance; // in kilometers
   final Duration estimatedDuration;
   final DateTime createdAt;
   final bool isOptimized;
+  final String? routePolyline; // Encoded polyline for the route
 
-  DeliveryRoute({
+  const DeliveryRoute({
     required this.id,
     required this.locations,
     required this.routePoints,
@@ -18,21 +19,38 @@ class DeliveryRoute {
     required this.estimatedDuration,
     required this.createdAt,
     this.isOptimized = false,
+    this.routePolyline,
   });
+
+  factory DeliveryRoute.empty() {
+    return DeliveryRoute(
+      id: '',
+      locations: [],
+      routePoints: [],
+      totalDistance: 0.0,
+      estimatedDuration: Duration.zero,
+      createdAt: DateTime.now(),
+      isOptimized: false,
+    );
+  }
 
   factory DeliveryRoute.fromJson(Map<String, dynamic> json) {
     return DeliveryRoute(
-      id: json['id'],
+      id: json['id'] as String,
       locations: (json['locations'] as List)
-          .map((loc) => DeliveryLocation.fromJson(loc))
+          .map((loc) => DeliveryLocation.fromJson(loc as Map<String, dynamic>))
           .toList(),
       routePoints: (json['routePoints'] as List)
-          .map((point) => LatLng(point['latitude'], point['longitude']))
+          .map((point) => LatLng(
+                (point['latitude'] as num).toDouble(),
+                (point['longitude'] as num).toDouble(),
+              ))
           .toList(),
-      totalDistance: json['totalDistance'].toDouble(),
-      estimatedDuration: Duration(seconds: json['estimatedDurationSeconds']),
-      createdAt: DateTime.parse(json['createdAt']),
-      isOptimized: json['isOptimized'] ?? false,
+      totalDistance: (json['totalDistance'] as num).toDouble(),
+      estimatedDuration: Duration(seconds: json['estimatedDurationSeconds'] as int),
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      isOptimized: json['isOptimized'] as bool? ?? false,
+      routePolyline: json['routePolyline'] as String?,
     );
   }
 
@@ -50,6 +68,7 @@ class DeliveryRoute {
       'estimatedDurationSeconds': estimatedDuration.inSeconds,
       'createdAt': createdAt.toIso8601String(),
       'isOptimized': isOptimized,
+      if (routePolyline != null) 'routePolyline': routePolyline,
     };
   }
 
@@ -61,6 +80,7 @@ class DeliveryRoute {
     Duration? estimatedDuration,
     DateTime? createdAt,
     bool? isOptimized,
+    String? routePolyline,
   }) {
     return DeliveryRoute(
       id: id ?? this.id,
@@ -70,25 +90,68 @@ class DeliveryRoute {
       estimatedDuration: estimatedDuration ?? this.estimatedDuration,
       createdAt: createdAt ?? this.createdAt,
       isOptimized: isOptimized ?? this.isOptimized,
+      routePolyline: routePolyline ?? this.routePolyline,
     );
   }
 
-  // Get the next unvisited location
+  /// Gets the next uncompleted delivery location
   DeliveryLocation? get nextLocation {
-    return locations.firstWhere(
-      (location) => !location.isCompleted,
-      orElse: () => locations.first,
+    try {
+      return locations.firstWhere((location) => !location.isCompleted);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Number of completed deliveries in this route
+  int get completedCount => locations.where((loc) => loc.isCompleted).length;
+
+  /// Total potential earnings from this route
+  double get totalEarnings => locations.fold(0.0, (sum, loc) => sum + loc.earning);
+
+  /// Progress percentage (0.0 to 1.0)
+  double get progress => locations.isEmpty ? 0.0 : completedCount / locations.length;
+
+  /// Estimated time remaining based on progress
+  Duration get estimatedTimeRemaining {
+    final secondsRemaining = estimatedDuration.inSeconds * (1 - progress);
+    return Duration(seconds: secondsRemaining.round());
+  }
+
+  /// Checks if all deliveries in this route are completed
+  bool get isCompleted => locations.every((loc) => loc.isCompleted);
+
+  /// Gets the current position index in the route
+  int get currentPositionIndex {
+    if (locations.isEmpty) return -1;
+    final firstUncompleted = locations.indexWhere((loc) => !loc.isCompleted);
+    return firstUncompleted == -1 ? locations.length - 1 : firstUncompleted;
+  }
+
+  /// Gets the bounds that contain all route points
+  LatLngBounds get bounds {
+    if (routePoints.isEmpty) {
+      return LatLngBounds(
+        northeast: const LatLng(0, 0),
+        southwest: const LatLng(0, 0),
+      );
+    }
+
+    double minLat = routePoints.first.latitude;
+    double maxLat = routePoints.first.latitude;
+    double minLng = routePoints.first.longitude;
+    double maxLng = routePoints.first.longitude;
+
+    for (final point in routePoints) {
+      minLat = point.latitude < minLat ? point.latitude : minLat;
+      maxLat = point.latitude > maxLat ? point.latitude : maxLat;
+      minLng = point.longitude < minLng ? point.longitude : minLng;
+      maxLng = point.longitude > maxLng ? point.longitude : maxLng;
+    }
+
+    return LatLngBounds(
+      northeast: LatLng(maxLat, maxLng),
+      southwest: LatLng(minLat, minLng),
     );
-  }
-
-  // Get completed locations count
-  int get completedCount {
-    return locations.where((location) => location.isCompleted).length;
-  }
-
-  // Get total earnings for the route
-  double get totalEarnings {
-    return locations.fold(0.0, (sum, location) => sum + location.earning);
   }
 }
-

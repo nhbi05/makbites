@@ -5,16 +5,16 @@ import '../models/delivery_location.dart';
 
 class RouteControls extends StatelessWidget {
   final DeliveryRoute? currentRoute;
-  final List<DeliveryLocation> deliveryLocations;
-  final Function(String) onLocationCompleted;
-  final VoidCallback? onOptimizeRoute;
+  final Function(String) onLocationCompleted; // Callback for marking location as completed
+  final VoidCallback? onOptimizeRoute; // Callback for optimizing route
+  final Function(DeliveryLocation)? onAdvanceToNextDelivery; // New callback to advance to next delivery
 
   const RouteControls({
     Key? key,
     this.currentRoute,
-    required this.deliveryLocations,
     required this.onLocationCompleted,
     this.onOptimizeRoute,
+    this.onAdvanceToNextDelivery,
   }) : super(key: key);
 
   @override
@@ -298,6 +298,9 @@ class RouteControls extends StatelessWidget {
             onPressed: () {
               Navigator.of(context).pop();
               onLocationCompleted(location.id);
+              if (onAdvanceToNextDelivery != null) {
+                onAdvanceToNextDelivery!(location);
+              }
               
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(

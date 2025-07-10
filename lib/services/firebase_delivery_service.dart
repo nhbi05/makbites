@@ -48,7 +48,7 @@ class FirebaseDeliveryService {
       
       for (int i = 0; i < locations.length; i++) {
         DeliveryLocation location = locations[i];
-        DocumentReference locationRef = deliveryRef.collection('locations').doc();
+        DocumentReference locationRef = deliveryRef.collection('locations').doc(location.id); // Use location.id as doc ID
         
         batch.set(locationRef, {
           ...location.toJson(),
@@ -186,20 +186,18 @@ class FirebaseDeliveryService {
       for (int i = 0; i < optimizedRoute.locations.length; i++) {
         DeliveryLocation location = optimizedRoute.locations[i];
         
-        // Find the location document by ID
-        QuerySnapshot locationQuery = await _deliveriesCollection
+        // Directly reference the location document by its ID
+        DocumentReference locationRef = _deliveriesCollection
             .doc(deliveryId)
             .collection('locations')
-            .where('id', isEqualTo: location.id)
-            .get();
+            .doc(location.id);
         
-        if (locationQuery.docs.isNotEmpty) {
-          DocumentReference locationRef = locationQuery.docs.first.reference;
-          batch.update(locationRef, {
-            'sequenceNumber': i + 1,
-            'estimatedTime': location.estimatedTime?.toIso8601String(),
-          });
-        }
+        batch.update(locationRef, {
+          'sequenceNumber': i + 1,
+          'priority': location.priority, // Update priority
+          'routeIndex': location.routeIndex, // Update routeIndex
+          'estimatedTime': location.estimatedTime?.toIso8601String(),
+        });
       }
       
       await batch.commit();
@@ -218,17 +216,11 @@ class FirebaseDeliveryService {
   }) async {
     try {
       // Update location document
-      QuerySnapshot locationQuery = await _deliveriesCollection
+      DocumentReference locationRef = _deliveriesCollection
           .doc(deliveryId)
           .collection('locations')
-          .where('id', isEqualTo: locationId)
-          .get();
+          .doc(locationId);
       
-      if (locationQuery.docs.isEmpty) {
-        throw Exception('Location not found');
-      }
-      
-      DocumentReference locationRef = locationQuery.docs.first.reference;
       await locationRef.update({
         'isCompleted': true,
         'completedAt': FieldValue.serverTimestamp(),
@@ -506,16 +498,12 @@ class FirebaseDeliveryService {
       for (Map<String, dynamic> update in locationUpdates) {
         String locationId = update['id'];
         
-        QuerySnapshot locationQuery = await _deliveriesCollection
+        DocumentReference locationRef = _deliveriesCollection
             .doc(deliveryId)
             .collection('locations')
-            .where('id', isEqualTo: locationId)
-            .get();
+            .doc(locationId);
         
-        if (locationQuery.docs.isNotEmpty) {
-          DocumentReference locationRef = locationQuery.docs.first.reference;
-          batch.update(locationRef, update);
-        }
+        batch.update(locationRef, update);
       }
       
       await batch.commit();
@@ -550,4 +538,5 @@ class FirebaseDeliveryService {
     }
   }
 }
+
 

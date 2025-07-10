@@ -7,6 +7,10 @@ import '../../config/routes.dart';
 import './delivery_map_screen.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../models/delivery_location.dart'; // Import DeliveryLocation model
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 
 class DeliveryHomeScreen extends StatefulWidget {
   @override
@@ -27,24 +31,57 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
   List<DeliveryLocation> _availableDeliveries = [
     DeliveryLocation(
       id: '1',
-      name: 'Campus Grill',
+      name: 'Mary Stuart Hall',
       address: 'Mary Stuart Hall',
-      coordinates: LatLng(0.3036, 32.5711), // Example coordinates
+      coordinates: LatLng(0.331635, 32.566491), 
       customerName: 'John Doe',
       customerPhone: '+256700123456',
       items: 'Beef Burger Combo + Fries',
       earning: 4500,
-      isPickup: true,
+      isPickup: false,
     ),
     DeliveryLocation(
       id: '2',
       name: 'Lumumba Hall',
-      address: 'Pizza Corner',
-      coordinates: LatLng(0.3136, 32.5811), // Example coordinates
+      address: 'Lumumba Hall',
+      coordinates: LatLng(0.331635, 32.566491), // Example coordinates
       customerName: 'Jane Smith',
       customerPhone: '+256700123457',
       items: 'Margherita Pizza + Drinks',
       earning: 6200,
+      isPickup: false,
+    ),
+    DeliveryLocation(
+      id: '3',
+      name: 'uni Hall',
+      address: 'Block C, Complex',
+      coordinates: LatLng(0.333118, 32.572447),
+      customerName: 'Alice Brown',
+      customerPhone: '+256700123458',
+      items: 'Chicken Wrap + Soda',
+      earning: 5000,
+      isPickup: false,
+    ),
+    DeliveryLocation(
+      id: '4',
+      name: 'Livingstone ',
+      address: 'livingstome room 7',
+      coordinates: LatLng( 0.338868, 32.567993),
+      customerName: 'Bob Green',
+      customerPhone: '+256700123459',
+      items: 'Rolex + Juice',
+      earning: 3500,
+      isPickup: false,
+    ),
+    DeliveryLocation(
+      id: '5',
+      name: "africa hall", 
+      address: 'Block D, Africa Hall',
+      coordinates: LatLng(0.337846, 32.568913),
+      customerName: 'Carol White',
+      customerPhone: '+256700123460',
+      items: 'Chapati + Tea',
+      earning: 4000,
       isPickup: false,
     ),
   ];
@@ -66,9 +103,16 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
     },
   ];
 
+  LatLng? _currentLocation;
+  List<LatLng> _optimizedPolyline = [];
+  List<int>? _waypointOrder = [];
+  Set<Marker> _markers = {};
+  int _currentOptimizedIndex = 0;
+
   @override
   void initState() {
     super.initState();
+    _getCurrentLocation().then((_) => _getOptimizedRoute());
   }
 
   @override
@@ -471,39 +515,99 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
   }
 
   Widget _buildCurrentDeliveryCard() {
-    // This card will now display information about the *current active route* if one is set
-    // For now, it will display a placeholder or be hidden if no active route.
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.withOpacity(0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Active Route Summary",
-            style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold),
-          ),
-          SizedBox(height: 8),
-          Text("You have ${_acceptedDeliveries.length} deliveries accepted.", 
-              style: TextStyle(color: Colors.grey)),
-          SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              icon: Icon(Icons.map),
-              label: Text("View Route on Map"),
-              onPressed: _viewMultiDeliveryMap,
-              style: OutlinedButton.styleFrom(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                side: BorderSide(color: AppColors.primary),
-              ),
+    if (_acceptedDeliveries.isEmpty || _waypointOrder == null || _waypointOrder!.isEmpty) return SizedBox.shrink();
+
+    final delivery = _acceptedDeliveries[_waypointOrder![_currentOptimizedIndex]];
+
+    return Card(
+      elevation: 4,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  delivery.isPickup ? Icons.store : Icons.home,
+                  color: delivery.isPickup ? Colors.orange : Colors.green,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    delivery.name,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                Text(
+                  'Stop ${_currentOptimizedIndex + 1}/${_waypointOrder!.length}',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ],
             ),
-          ),
-        ],
+            SizedBox(height: 8),
+            Text(delivery.address),
+            SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.person, size: 16, color: Colors.grey),
+                SizedBox(width: 4),
+                Text(delivery.customerName, style: TextStyle(color: Colors.grey)),
+              ],
+            ),
+            SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.fastfood, size: 16, color: Colors.grey),
+                SizedBox(width: 4),
+                Text(delivery.items, style: TextStyle(color: Colors.grey)),
+              ],
+            ),
+            SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'UGX ${delivery.earning}',
+                  style: TextStyle(
+                    color: AppColors.success,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () => _callCustomerFor(delivery.customerPhone),
+                  icon: Icon(Icons.phone, size: 16),
+                  label: Text('Call Customer'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: Icon(Icons.arrow_back),
+                  onPressed: _currentOptimizedIndex > 0
+                      ? () => setState(() => _currentOptimizedIndex--)
+                      : null,
+                ),
+                IconButton(
+                  icon: Icon(Icons.arrow_forward),
+                  onPressed: _currentOptimizedIndex < _waypointOrder!.length - 1
+                      ? () => setState(() => _currentOptimizedIndex++)
+                      : null,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -899,6 +1003,121 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
       ],
       onTap: _handleBottomNavTap,
     );
+  }
+
+  Future<void> _getOptimizedRoute() async {
+    if (_currentLocation == null || _acceptedDeliveries.isEmpty) return;
+
+    final apiKey = 'AIzaSyAS10x2khf_QHLIGeyWIADDpoGLgaUkln0';
+    final origin = '${_currentLocation!.latitude},${_currentLocation!.longitude}';
+    final destination = '${_acceptedDeliveries.last.coordinates.latitude},${_acceptedDeliveries.last.coordinates.longitude}';
+    final waypoints = _acceptedDeliveries
+        .sublist(0, _acceptedDeliveries.length - 1)
+        .map((d) => '${d.coordinates.latitude},${d.coordinates.longitude}')
+        .join('|');
+
+    final url =
+        'https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$destination&waypoints=optimize:true|$waypoints&key=$apiKey';
+
+    final response = await http.get(Uri.parse(url));
+    final data = json.decode(response.body);
+
+    if (data['status'] == 'OK') {
+      final route = data['routes'][0];
+      final polyline = route['overview_polyline']['points'];
+      final waypointOrder = List<int>.from(route['waypoint_order']);
+
+      // Decode polyline
+      PolylinePoints polylinePoints = PolylinePoints();
+      List<PointLatLng> result = polylinePoints.decodePolyline(polyline);
+
+      setState(() {
+        _optimizedPolyline = result
+            .map((point) => LatLng(point.latitude, point.longitude))
+            .toList();
+        _waypointOrder = waypointOrder;
+      });
+
+      _createMarkers();
+    } else {
+      // Handle error
+    }
+  }
+
+  void _createMarkers() {
+    Set<Marker> markers = {};
+
+    // Start marker
+    if (_currentLocation != null) {
+      _markers.add(Marker(
+        markerId: MarkerId('start'),
+        position: _currentLocation!,
+        infoWindow: InfoWindow(title: 'Start (You)'),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+      ));
+    }
+
+    // Delivery stops
+    for (int i = 0; i < _waypointOrder!.length; i++) {
+      final delivery = _acceptedDeliveries[_waypointOrder![i]];
+      markers.add(Marker(
+        markerId: MarkerId('stop_${i + 1}'),
+        position: delivery.coordinates,
+        infoWindow: InfoWindow(title: 'Stop ${i + 1}', snippet: delivery.name),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+      ));
+    }
+
+    // End marker
+    final last = _acceptedDeliveries.last;
+    markers.add(Marker(
+      markerId: MarkerId('end'),
+      position: last.coordinates,
+      infoWindow: InfoWindow(title: 'End', snippet: last.name),
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+    ));
+
+    setState(() {
+      _markers = markers;
+    });
+  }
+
+  Future<void> _getCurrentLocation() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      // Optionally show a message to the user
+      return;
+    }
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        // Optionally show a message to the user
+        return;
+      }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      // Permissions are denied forever, handle appropriately.
+      return;
+    }
+    Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+    setState(() {
+      _currentLocation = LatLng(position.latitude, position.longitude);
+    });
+  }
+
+  void _callCustomerFor(String phoneNumber) async {
+    final Uri launchUri = Uri(
+      scheme: 'tel',
+      path: phoneNumber,
+    );
+    if (await canLaunchUrl(launchUri)) {
+      await launchUrl(launchUri);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not call $phoneNumber')),
+      );
+    }
   }
 }
 

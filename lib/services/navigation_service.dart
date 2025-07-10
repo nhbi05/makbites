@@ -9,7 +9,7 @@ import '../models/delivery_location.dart';
 import '../services/location_service.dart';
 
 class NavigationService extends ChangeNotifier {
-  static const String _googleMapsApiKey = 'YOUR_GOOGLE_MAPS_API_KEY';
+  static const String _googleMapsApiKey = 'AIzaSyAS10x2khf_QHLIGeyWIADDpoGLgaUkln0';
   static const String _directionsBaseUrl = 'https://maps.googleapis.com/maps/api/directions/json';
   
   final LocationService _locationService;
