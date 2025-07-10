@@ -21,8 +21,8 @@ class _OrdersPageState extends State<OrdersPage> {
     _loadUsers();
   }
 
-  void _showSetPreparationTimeDialog(String orderId) {
-    showDialog(
+  void _showSetPreparationTimeDialog(String orderId) async {
+    final result = await showDialog(
       context: context,
       builder: (BuildContext context) => Dialog(
         shape: RoundedRectangleBorder(
@@ -30,11 +30,17 @@ class _OrdersPageState extends State<OrdersPage> {
         ),
         child: SetPreparationTimePage(
           orderId: orderId,
-          vendorRestaurantId: widget.vendorRestaurantId,
+          vendorRestaurantIdOrName: widget.vendorRestaurantId,
         ),
       ),
     );
+
+    // If dialog succeeded, force a rebuild:
+    if (result == true) {
+      setState(() {}); // This will not break the StreamBuilder, but re-evaluates the widget tree.
+    }
   }
+
 
   Future<void> _loadUsers() async {
     final userSnapshot = await FirebaseFirestore.instance.collection('users').get();
