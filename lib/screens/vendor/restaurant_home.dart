@@ -15,9 +15,9 @@ class VendorHomePage extends StatefulWidget {
 
 class _VendorHomePageState extends State<VendorHomePage> {
   int _currentIndex = 0;
-  late List<Widget> _pages;
   String? restaurantName;
   String? profileImageUrl;
+  bool isRestaurantOpen = true;
 
   @override
   void initState() {
@@ -27,26 +27,88 @@ class _VendorHomePageState extends State<VendorHomePage> {
       statusBarIconBrightness: Brightness.dark,
       statusBarBrightness: Brightness.light,
     ));
+    _initializeRestaurant(); // ✅ Auto-create if missing
     _fetchVendorData();
-    _pages = [
-      _buildDashboard(),
-      OrdersPage(vendorRestaurantId: restaurantName ?? ''),
-      MenuPage(),
-      ProfilePage(),
-    ];
   }
 
+  /// ✅ Auto-create restaurant document if missing (with correct name from users collection)
+  Future<void> _initializeRestaurant() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final restaurantDoc = FirebaseFirestore.instance
+          .collection('restaurants')
+          .doc(user.uid);
+      final doc = await restaurantDoc.get();
+
+      if (!doc.exists) {
+        // ✅ Fetch name from 'users' collection
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        final userName = userDoc.data()?['name'] ?? 'Unnamed Restaurant';
+
+        await restaurantDoc.set({
+          'name': userName, // ✅ Correct name
+          'profileImage': '',
+          'location': '',
+          'isOpen': true,
+        });
+        print('Restaurant created automatically with correct name.');
+      } else {
+        // ✅ Fix missing fields in existing document
+        final data = doc.data()!;
+        final Map<String, dynamic> updates = {};
+
+        if (!data.containsKey('name')) {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+          updates['name'] = userDoc.data()?['name'] ?? 'Unnamed Restaurant';
+        }
+        if (!data.containsKey('profileImage')) {
+          updates['profileImage'] = '';
+        }
+        if (!data.containsKey('location')) {
+          updates['location'] = '';
+        }
+        if (!data.containsKey('isOpen')) {
+          updates['isOpen'] = true;
+        }
+
+        if (updates.isNotEmpty) {
+          await restaurantDoc.update(updates);
+          print('Existing restaurant updated with missing fields.');
+        }
+      }
+    }
+  }
+
+  /// ✅ Fetch restaurant data
   Future<void> _fetchVendorData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final doc = await FirebaseFirestore.instance
-          .collection('users')
+          .collection('restaurants')
           .doc(user.uid)
           .get();
       setState(() {
         restaurantName = doc.data()?['name'] ?? 'Restaurant';
         profileImageUrl = doc.data()?['profileImage'];
+        isRestaurantOpen = doc.data()?['isOpen'] ?? true;
       });
+    }
+  }
+
+  /// ✅ Update restaurant open/closed status
+  Future<void> _updateRestaurantStatus(bool status) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await FirebaseFirestore.instance
+          .collection('restaurants')
+          .doc(user.uid)
+          .update({'isOpen': status});
     }
   }
 
@@ -68,14 +130,18 @@ class _VendorHomePageState extends State<VendorHomePage> {
               backgroundImage: NetworkImage(profileImageUrl!),
             )
                 : const Icon(Icons.person, color: Colors.white),
-            onPressed: () {
-              Navigator.pushNamed(context, '/vendor-profile');
-            },
+            onPressed: () {},
           ),
           const SizedBox(width: 10),
         ],
       ),
-      body: _pages[_currentIndex],
+      body: _currentIndex == 0
+          ? _buildDashboard()
+          : _currentIndex == 1
+          ? OrdersPage(vendorRestaurantId: restaurantName ?? '')
+          : _currentIndex == 2
+          ? MenuPage()
+          : ProfilePage(),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         selectedItemColor: AppColors.primary,
@@ -104,11 +170,13 @@ class _VendorHomePageState extends State<VendorHomePage> {
         children: [
           _headerSection(),
           _metricsGrid(),
+          _restaurantStatusCard(),
           _sectionTitle("Recent Orders"),
-          _orderCard("#1234", "Matooke and Rice", "John Doe", "Preparing"),
-          _sectionTitle("Popular Orders"),
-          _orderCard("#1221", "Chapati and Beans", "Jane Smith", "Completed"),
-          _orderCard("#1222", "Chicken Pilau", "Alex Kim", "Completed"),
+          const Padding(
+            padding: EdgeInsets.all(12.0),
+            child: Text(
+                "No recent orders yet.", style: TextStyle(color: Colors.grey)),
+          ),
         ],
       ),
     );
@@ -116,13 +184,16 @@ class _VendorHomePageState extends State<VendorHomePage> {
 
   Widget _headerSection() {
     String greeting;
-    final hour = DateTime.now().hour;
+    final hour = DateTime
+        .now()
+        .hour;
     if (hour < 12) {
       greeting = "Good Morning, Chef!\nReady to serve delicious meals today?";
     } else if (hour >= 12 && hour < 17) {
       greeting = "Good Afternoon, Chef!\nReady for the lunch rush?";
     } else {
-      greeting = "Good Evening, Chef!\nReady to serve the last meals of the day?";
+      greeting =
+      "Good Evening, Chef!\nReady to serve the last meals of the day?";
     }
 
     return Padding(
@@ -141,7 +212,6 @@ class _VendorHomePageState extends State<VendorHomePage> {
       ),
     );
   }
-
 
   Widget _metricsGrid() {
     return Padding(
@@ -188,49 +258,43 @@ class _VendorHomePageState extends State<VendorHomePage> {
     );
   }
 
+  /// ✅ Restaurant Status Toggle Card
+  Widget _restaurantStatusCard() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              isRestaurantOpen ? "Restaurant Open" : "Restaurant Closed",
+              style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
+            ),
+            Switch(
+              value: isRestaurantOpen,
+              activeColor: AppColors.primary,
+              onChanged: (value) {
+                setState(() {
+                  isRestaurantOpen = value;
+                });
+                _updateRestaurantStatus(value);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _sectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.all(12.0),
       child: Text(title, style: AppTextStyles.subHeader),
-    );
-  }
-
-  Widget _orderCard(String id, String meal, String customer, String status) {
-    Color statusColor;
-    switch (status) {
-      case "preparing":
-        statusColor = Colors.orange;
-        break;
-      case "completed":
-        statusColor = Colors.green;
-        break;
-      default:
-        statusColor = Colors.grey;
-    }
-
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: ListTile(
-        leading: const Icon(Icons.fastfood),
-        title: Text(meal, style: AppTextStyles.body),
-        subtitle: Text(
-            customer, style: AppTextStyles.body.copyWith(fontSize: 14)),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: statusColor.withOpacity(0.1),
-            // Light background with opacity
-            borderRadius: BorderRadius.circular(16), // More curved
-          ),
-          child: Text(
-            status,
-            style: AppTextStyles.body.copyWith(
-              color: statusColor, // Colored text
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

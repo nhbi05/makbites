@@ -1,4 +1,7 @@
 pluginManagement {
+
+
+
     val flutterSdkPath = run {
         val properties = java.util.Properties()
         file("local.properties").inputStream().use { properties.load(it) }
@@ -25,4 +28,5 @@ plugins {
     id("org.jetbrains.kotlin.android") version "2.1.0" apply false
 }
 
+rootProject.name = "makbites"
 include(":app")

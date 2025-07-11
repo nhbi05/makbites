@@ -84,6 +84,17 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
       earning: 4000,
       isPickup: false,
     ),
+    DeliveryLocation(
+      id: '6',
+      name: "Cocis", 
+      address: 'Block D, Cocis',
+      coordinates: LatLng(0.331419, 32.570636),
+      customerName: 'Carol White',
+      customerPhone: '+256700123460',
+      items: 'Chapati + Tea',
+      earning: 4000,
+      isPickup: false,
+    ),
   ];
 
   List<DeliveryLocation> _acceptedDeliveries = []; // New list to hold accepted deliveries
@@ -517,7 +528,21 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
   Widget _buildCurrentDeliveryCard() {
     if (_acceptedDeliveries.isEmpty || _waypointOrder == null || _waypointOrder!.isEmpty) return SizedBox.shrink();
 
-    final delivery = _acceptedDeliveries[_waypointOrder![_currentOptimizedIndex]];
+    // Build the full optimized order including the destination
+    List<int> allStopsOrder;
+    if (_waypointOrder == null || _waypointOrder!.isEmpty) {
+      // Only one delivery, so just show it
+      allStopsOrder = [_acceptedDeliveries.length - 1];
+    } else {
+      // Usual case: waypoints + destination
+      allStopsOrder = [
+        ..._waypointOrder!,
+        _acceptedDeliveries.length - 1
+      ];
+    }
+
+    // Use _currentOptimizedIndex to index into allStopsOrder
+    final delivery = _acceptedDeliveries[allStopsOrder[_currentOptimizedIndex]];
 
     return Card(
       elevation: 4,
@@ -543,7 +568,7 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
                   ),
                 ),
                 Text(
-                  'Stop ${_currentOptimizedIndex + 1}/${_waypointOrder!.length}',
+                  'Stop ${_currentOptimizedIndex + 1}/${allStopsOrder.length}',
                   style: TextStyle(color: Colors.grey),
                 ),
               ],
@@ -600,7 +625,7 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
                 ),
                 IconButton(
                   icon: Icon(Icons.arrow_forward),
-                  onPressed: _currentOptimizedIndex < _waypointOrder!.length - 1
+                  onPressed: _currentOptimizedIndex < allStopsOrder.length - 1
                       ? () => setState(() => _currentOptimizedIndex++)
                       : null,
                 ),
