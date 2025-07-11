@@ -6,6 +6,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/user_event.dart';
 import 'package:intl/intl.dart';
 import 'order_history_screen.dart';
+import '../../config/routes.dart';
+import 'package:geolocator/geolocator.dart';
+import 'browse_restaurants_screen.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   @override
@@ -13,6 +16,55 @@ class CustomerHomeScreen extends StatefulWidget {
 }
 
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
+  Position? _currentPosition;
+  String? _locationError;
+
+  Future<void> _getCurrentLocation() async {
+    setState(() {
+      _locationError = null;
+    });
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      setState(() {
+        _locationError = 'Location services are disabled.';
+      });
+      return;
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        setState(() {
+          _locationError = 'Location permissions are denied.';
+        });
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      setState(() {
+        _locationError = 'Location permissions are permanently denied.';
+      });
+      return;
+    }
+
+    try {
+      Position position = await Geolocator.getCurrentPosition();
+      setState(() {
+        _currentPosition = position;
+      });
+    } catch (e) {
+      setState(() {
+        _locationError = 'Failed to get location: '
+            + e.toString();
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     String greeting() {
@@ -56,15 +108,49 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             ),
             child: SingleChildScrollView(
               padding: EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Welcome Section
-                  Container(
-                    width: double.infinity,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Make Location Sharing Button smaller and less prominent
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton.icon(
+                    icon: Icon(Icons.location_on, size: 20),
+                    label: Text('Share Location', style: TextStyle(fontSize: 14)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      minimumSize: Size(0, 36),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: _getCurrentLocation,
+                  ),
+                ),
+                if (_currentPosition != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      'Lat: ${_currentPosition!.latitude}, Lng: ${_currentPosition!.longitude}',
+                      style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
+                if (_locationError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      _locationError!,
+                      style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
+                SizedBox(height: 16),
+                // Welcome Section
+                Container(
+                  width: double.infinity,
                     padding: EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: AppColors.secondary,
+                  decoration: BoxDecoration(
+                    color: AppColors.secondary,
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
@@ -73,46 +159,46 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                           offset: Offset(0, 4),
                         ),
                       ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
                           greeting(),
                           style: AppTextStyles.subHeader.copyWith(fontSize: 26, fontWeight: FontWeight.bold),
-                        ),
+                      ),
                         SizedBox(height: 8),
-                        Text(
+                      Text(
                           'Discover delicious meals and order from your favorite campus restaurants!',
                           style: AppTextStyles.body.copyWith(fontSize: 16, color: AppColors.textDark.withOpacity(0.8)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: 32),
-                  // Quick Actions
-                  Text(
-                    'Quick Actions',
-                    style: AppTextStyles.subHeader,
-                  ),
-                  SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(child: _buildQuickAction('Schedule\nMeals', Icons.schedule, AppColors.primary)),
-                      SizedBox(width: 12),
-                      Expanded(child: _buildQuickAction('Browse\nRestaurants', Icons.restaurant, AppColors.success)),
-                      SizedBox(width: 12),
-                      Expanded(child: _buildQuickAction('Order\nHistory', Icons.history, AppColors.warning)),
+                      ),
                     ],
                   ),
+                ),
+                  SizedBox(height: 32),
+                // Quick Actions
+                Text(
+                  'Quick Actions',
+                  style: AppTextStyles.subHeader,
+                ),
+                SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(child: _buildQuickAction('Schedule\nMeals', Icons.schedule, AppColors.primary)),
+                    SizedBox(width: 12),
+                    Expanded(child: _buildQuickAction('Browse\nRestaurants', Icons.restaurant, AppColors.success)),
+                    SizedBox(width: 12),
+                    Expanded(child: _buildQuickAction('Order\nHistory', Icons.history, AppColors.warning)),
+                  ],
+                ),
                   SizedBox(height: 32),
                   Divider(thickness: 1.2, color: AppColors.primary.withOpacity(0.15)),
-                  SizedBox(height: 24),
-                  // Popular Restaurants
-                  Text(
-                    'Popular Near Campus',
+                SizedBox(height: 24),
+                // Popular Restaurants
+                Text(
+                  'Popular Near Campus',
                     style: AppTextStyles.subHeader.copyWith(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
+                ),
                   SizedBox(height: 18),
                   ...[
                     {'name': 'MK Catering Services', 'location': 'Africa Hall', 'image': 'assets/images/MKcatering.png'},
@@ -122,7 +208,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                     {'name': 'Fresh Hot', 'location': 'Kikumi kikumi', 'image': 'assets/images/freshhot.png'},
                   ].map((restaurant) => _buildModernRestaurantCard(restaurant['name']!, restaurant['location']!, restaurant['image']!)).toList(),
                   SizedBox(height: 32),
-                ],
+              ],
               ),
             ),
           ),
@@ -136,9 +222,12 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     return GestureDetector(
       onTap: () {
         if (title.contains('Schedule')) {
-          Navigator.pushNamed(context, '/weekly-schedule-setup');
+          Navigator.pushNamed(context, AppRoutes.weeklyScheduleSetup);
         } else if (title.contains('Browse')) {
-          // Navigate to restaurant browse
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => BrowseRestaurantsScreen()),
+          );
         } else if (title.contains('History')) {
           Navigator.push(
             context,
