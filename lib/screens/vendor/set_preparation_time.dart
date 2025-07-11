@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 
 class SetPreparationTimePage extends StatefulWidget {
   final String orderId;
-
-  /// This can be the restaurant **ID** or the **name** — we’ll handle both.
   final String vendorRestaurantIdOrName;
 
   const SetPreparationTimePage({
@@ -38,24 +36,18 @@ class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
     _resolveRestaurantIdAndFetchRiders();
   }
 
-  /// Step 1: Figure out the actual restaurant Firestore doc ID
   Future<void> _resolveRestaurantIdAndFetchRiders() async {
-    setState(() {
-      _isLoadingRiders = true;
-    });
+    setState(() => _isLoadingRiders = true);
 
     try {
-      // Try to get the restaurant doc by ID first
       final doc = await FirebaseFirestore.instance
           .collection('restaurants')
           .doc(widget.vendorRestaurantIdOrName)
           .get();
 
       if (doc.exists) {
-        // It is already the ID
         _restaurantDocId = doc.id;
       } else {
-        // Not an ID, so look up by name
         final snapshot = await FirebaseFirestore.instance
             .collection('restaurants')
             .where('name', isEqualTo: widget.vendorRestaurantIdOrName)
@@ -63,26 +55,19 @@ class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
             .get();
 
         if (snapshot.docs.isEmpty) {
-          throw Exception(
-              'No restaurant found with name ${widget.vendorRestaurantIdOrName}');
+          throw Exception('No restaurant found with name ${widget.vendorRestaurantIdOrName}');
         }
 
         _restaurantDocId = snapshot.docs.first.id;
       }
 
-      print('Resolved restaurant ID: $_restaurantDocId');
-
       await _fetchRiders();
     } catch (e) {
-      print('Error resolving restaurant ID: $e');
       _showSnackBar('Could not find restaurant. Please check and try again.');
-      setState(() {
-        _isLoadingRiders = false;
-      });
+      setState(() => _isLoadingRiders = false);
     }
   }
 
-  /// Step 2: Fetch riders using the resolved restaurant doc ID
   Future<void> _fetchRiders() async {
     if (_restaurantDocId == null) return;
 
@@ -104,14 +89,9 @@ class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
         _riders = ridersList;
         _isLoadingRiders = false;
       });
-
-      print('Fetched ${_riders.length} riders for restaurant: $_restaurantDocId');
     } catch (e) {
-      print('Error fetching riders: $e');
       _showSnackBar('Error loading riders. Please try again.');
-      setState(() {
-        _isLoadingRiders = false;
-      });
+      setState(() => _isLoadingRiders = false);
     }
   }
 
@@ -121,62 +101,51 @@ class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
       return;
     }
 
-    if (selectedRiderId == null) {
-      _showSnackBar('Please select a rider.');
-      return;
-    }
-
-    setState(() {
-      _isSubmitting = true;
-    });
-
-    final selectedRider = _riders.firstWhere((r) => r['id'] == selectedRiderId);
+    setState(() => _isSubmitting = true);
 
     try {
-      await FirebaseFirestore.instance
-          .collection('orders')
-          .doc(widget.orderId)
-          .update({
+      Map<String, dynamic> updateData = {
         'status': 'Start Preparing',
         'estimatedPreparationTime': selectedTime,
         'preparationStartTimestamp': FieldValue.serverTimestamp(),
-        'restaurant': _restaurantDocId,
-        'assignedRiderId': selectedRiderId,
-        'assignedRiderName': selectedRider['name'],
-      });
-      //udpate the total delivery field
+      };
+
+      if (selectedRiderId != null && _riders.any((r) => r['id'] == selectedRiderId)) {
+        final selectedRider = _riders.firstWhere((r) => r['id'] == selectedRiderId);
+        updateData['assignedRiderId'] = selectedRiderId!;
+        updateData['assignedRiderName'] = selectedRider['name'];
+
+        await FirebaseFirestore.instance
+            .collection('delivery_riders')
+            .doc(selectedRiderId)
+            .update({'total_deliveries': FieldValue.increment(1)});
+      }
+
+      updateData.removeWhere((key, value) => value == null);
+
       await FirebaseFirestore.instance
-          .collection('delivery_riders')
-          .doc(selectedRiderId)
-          .update({
-        'total_deliveries': FieldValue.increment(1),
-      });
-      Navigator.pop(context, true);
+          .collection('orders')
+          .doc(widget.orderId)
+          .update(updateData);
+
+      Navigator.pop(context, true); // trigger refresh
     } catch (e) {
       _showSnackBar('Error: Could not update order.');
-      setState(() {
-        _isSubmitting = false;
-      });
+      setState(() => _isSubmitting = false);
     }
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Widget _buildRiderDropdown() {
     if (_isLoadingRiders) {
-      return Container(
+      return Padding(
         padding: EdgeInsets.all(16),
         child: Row(
           children: [
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
+            SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
             SizedBox(width: 10),
             Text("Loading riders..."),
           ],
@@ -185,29 +154,18 @@ class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
     }
 
     if (_riders.isEmpty) {
-      return Container(
+      return Padding(
         padding: EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: Colors.grey[300]!),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.warning, color: Colors.orange, size: 20),
-            SizedBox(width: 10),
-            Text(
-              "No riders available for this restaurant",
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-          ],
+        child: Text(
+          "No riders available now. You can continue without assigning one.",
+          style: TextStyle(color: Colors.grey[600], fontStyle: FontStyle.italic),
         ),
       );
     }
 
     return DropdownButtonFormField<String>(
       value: selectedRiderId,
-      hint: Text("Select rider"),
+      hint: Text("Select rider (optional)"),
       decoration: InputDecoration(
         border: OutlineInputBorder(),
         contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -218,54 +176,48 @@ class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
           child: Text(rider['name']),
         );
       }).toList(),
-      onChanged: (value) {
-        setState(() {
-          selectedRiderId = value;
-        });
-      },
+      onChanged: (value) => setState(() => selectedRiderId = value),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return _isSubmitting
-        ? Center(child: CircularProgressIndicator())
-        : SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Select an estimated preparation time and rider:",
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          SizedBox(height: 20),
-          ...times.map((time) {
-            return RadioListTile<String>(
-              title: Text(time),
-              value: time,
-              groupValue: selectedTime,
-              onChanged: (value) => setState(() => selectedTime = value),
-            );
-          }).toList(),
-          SizedBox(height: 20),
-          Text(
-            "Assign a rider:",
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          SizedBox(height: 10),
-          _buildRiderDropdown(),
-          SizedBox(height: 30),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed:
-              (_riders.isEmpty || _isLoadingRiders) ? null : _submitTime,
-              child: Text("Confirm & Start Preparing"),
+    return Scaffold(
+      appBar: AppBar(title: Text("Set Preparation Time")),
+      body: _isSubmitting
+          ? Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Set preparation time:",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            SizedBox(height: 20),
+            ...times.map((time) {
+              return RadioListTile<String>(
+                title: Text(time),
+                value: time,
+                groupValue: selectedTime,
+                onChanged: (value) => setState(() => selectedTime = value),
+              );
+            }).toList(),
+            SizedBox(height: 20),
+            Text("Assign a rider (optional):",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            SizedBox(height: 10),
+            _buildRiderDropdown(),
+            SizedBox(height: 30),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _submitTime,
+                child: Text("Confirm & Start Preparing"),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
