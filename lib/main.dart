@@ -4,6 +4,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'app.dart';
 import 'firebase_options.dart';
+import 'package:provider/provider.dart';
+import 'models/cart_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,5 +23,10 @@ void main() async {
     ),
   );
   
-  runApp(const MakBitesApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => CartModel(),
+      child: const MakBitesApp(),
+    ),
+  );
 }
