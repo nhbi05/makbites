@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import '../../models/cart_model.dart';
+import 'dart:math';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'restaurant_menu_screen.dart';
 
 class BrowseRestaurantsScreen extends StatefulWidget {
   @override
@@ -13,10 +18,10 @@ class _BrowseRestaurantsScreenState extends State<BrowseRestaurantsScreen> {
   @override
   void initState() {
     super.initState();
-    fetchRestaurants();
+    listenToRestaurants();
   }
 
-  Future<void> fetchRestaurants() async {
+  void listenToRestaurants() {
     final names = [
       "MK-Catering Services",
       "Fresh Hot",
@@ -24,28 +29,44 @@ class _BrowseRestaurantsScreenState extends State<BrowseRestaurantsScreen> {
       "Freddoz",
       "Ssalongo's"
     ];
-    final snapshot = await FirebaseFirestore.instance
+    FirebaseFirestore.instance
         .collection('restaurants')
         .where('name', whereIn: names)
-        .get();
-    print('Fetched docs: ${snapshot.docs.length}');
-    for (var doc in snapshot.docs) {
-      print('Doc data: ${doc.data()}');
-    }
+        .snapshots()
+        .listen((snapshot) {
+      final seenNames = <String>{};
     setState(() {
-      restaurants = snapshot.docs.map((doc) => doc.data()).toList();
+        restaurants = snapshot.docs
+            .map((doc) {
+              final data = doc.data();
+              data['docId'] = doc.id; // Attach the Firestore document ID
+              return data;
+            })
+            .where((restaurant) => seenNames.add(restaurant['name']))
+            .toList();
       isLoading = false;
+      });
     });
   }
 
-  Widget _buildModernRestaurantCard(String name, String location, String imageUrl) {
+  Widget _buildModernRestaurantCard(String name, String location, String imageUrl, String docId) {
     return Card(
       elevation: 5,
       margin: EdgeInsets.only(bottom: 18, left: 16, right: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () {},
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RestaurantMenuScreen(
+                restaurantDocId: docId,
+                restaurantName: name,
+              ),
+            ),
+          );
+        },
         child: Padding(
           padding: const EdgeInsets.all(18.0),
           child: Row(
@@ -104,9 +125,262 @@ class _BrowseRestaurantsScreenState extends State<BrowseRestaurantsScreen> {
                       restaurant['name'] ?? 'No Name',
                       restaurant['location'] ?? '',
                       restaurant['profileImage'] ?? '',
+                      restaurant['docId'] ?? '',
                     );
                   },
                 ),
+    );
+  }
+}
+
+// Remove the RestaurantMenuScreen class from this file entirely, so it is only defined in restaurant_menu_screen.dart
+
+class CartScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final cart = Provider.of<CartModel>(context);
+    double total = 0;
+    for (final item in cart.items) {
+      final price = (item['price'] ?? 0) as num;
+      final quantity = (item['quantity'] ?? 1) as num;
+      total += price * quantity;
+    }
+    return Scaffold(
+      appBar: AppBar(title: Text('Your Cart')),
+      body: cart.items.isEmpty
+          ? Center(child: Text('Your cart is empty.'))
+          : Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: cart.items.length,
+                    itemBuilder: (context, index) {
+                      final item = cart.items[index];
+                      final price = (item['price'] ?? 0) as num;
+                      final quantity = (item['quantity'] ?? 1) as num;
+                      return ListTile(
+                        leading: item['imageUrl'] != null && item['imageUrl'] != ''
+                            ? Image.network(item['imageUrl'], width: 40, height: 40, fit: BoxFit.cover)
+                            : Icon(Icons.fastfood, size: 32, color: Colors.grey[400]),
+                        title: Text(item['name'] ?? 'No Name'),
+                        subtitle: Text('UGX $price x $quantity = UGX ${price * quantity}'),
+                        trailing: IconButton(
+                          icon: Icon(Icons.delete, color: Colors.red),
+                          onPressed: () {
+                            cart.removeItem(item);
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Total:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text('UGX $total', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => CheckoutScreen(total: total)),
+                        );
+                      },
+                      child: Text('Checkout'),
+                      style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        textStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        backgroundColor: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class CheckoutScreen extends StatefulWidget {
+  final double total;
+  CheckoutScreen({required this.total});
+
+  @override
+  State<CheckoutScreen> createState() => _CheckoutScreenState();
+}
+
+class _CheckoutScreenState extends State<CheckoutScreen> {
+  final TextEditingController _locationController = TextEditingController();
+  late int deliveryFee;
+  late String deliveryFeeLabel;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final options = [0, 500, 1000];
+    deliveryFee = options[Random().nextInt(options.length)];
+    deliveryFeeLabel = deliveryFee == 0 ? 'Free' : 'UGX $deliveryFee';
+  }
+
+  @override
+  void dispose() {
+    _locationController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveOrderToFirestore(List<Map<String, dynamic>> items, String location, double total, int deliveryFee) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('User not logged in');
+    try {
+      await FirebaseFirestore.instance.collection('orders').add({
+        'userId': user.uid,
+        'items': items,
+        'location': location,
+        'foodPrice': total,
+        'deliveryFee': deliveryFee,
+        'clientTimestamp': DateTime.now(),
+        'serverTimestamp': FieldValue.serverTimestamp(),
+        'status': 'pending',
+        'orderSource': 'browse',
+      });
+    } catch (e) {
+      print('Error saving order: $e');
+      throw e;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cart = Provider.of<CartModel>(context);
+    double itemsTotal = 0;
+    for (final item in cart.items) {
+      final price = (item['price'] ?? 0) as num;
+      final quantity = (item['quantity'] ?? 1) as num;
+      itemsTotal += price * quantity;
+    }
+    double grandTotal = itemsTotal + deliveryFee;
+    return Scaffold(
+      appBar: AppBar(title: Text('Checkout')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Order Summary', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            SizedBox(height: 12),
+            Expanded(
+              child: ListView.builder(
+                itemCount: cart.items.length,
+                itemBuilder: (context, index) {
+                  final item = cart.items[index];
+                  final price = (item['price'] ?? 0) as num;
+                  final quantity = (item['quantity'] ?? 1) as num;
+                  return ListTile(
+                    leading: item['imageUrl'] != null && item['imageUrl'] != ''
+                        ? Image.network(item['imageUrl'], width: 40, height: 40, fit: BoxFit.cover)
+                        : Icon(Icons.fastfood, size: 32, color: Colors.grey[400]),
+                    title: Text(item['name'] ?? 'No Name'),
+                    subtitle: Text('UGX $price x $quantity = UGX ${price * quantity}'),
+                  );
+                },
+              ),
+            ),
+            SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Delivery Fee:', style: TextStyle(fontSize: 16)),
+                Text(deliveryFeeLabel, style: TextStyle(fontSize: 16)),
+              ],
+            ),
+            SizedBox(height: 8),
+            TextField(
+              controller: _locationController,
+              decoration: InputDecoration(
+                labelText: 'Delivery Location',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Total:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text('UGX $grandTotal', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: _isSaving
+                  ? Center(child: CircularProgressIndicator())
+                  : ElevatedButton(
+                      onPressed: () async {
+                        if (_locationController.text.trim().isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Please enter a delivery location.')),
+                          );
+                          return;
+                        }
+                        setState(() => _isSaving = true);
+                        try {
+                          await _saveOrderToFirestore(
+                            cart.items,
+                            _locationController.text.trim(),
+                            itemsTotal,
+                            deliveryFee,
+                          );
+                          setState(() => _isSaving = false);
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: Text('Order Confirmed'),
+                              content: Text('Your order has been sent to the restaurant!'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(context); // Close dialog
+                                    Navigator.pop(context); // Back to cart
+                                    Navigator.pop(context); // Back to menu
+                                    cart.clear();
+                                  },
+                                  child: Text('OK'),
+                                ),
+                              ],
+                            ),
+                          );
+                        } catch (e) {
+                          setState(() => _isSaving = false);
+                          print('Order placement failed: $e');
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Failed to place order. Please try again.'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      },
+                      child: Text('Confirm Order'),
+                      style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        textStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        backgroundColor: Theme.of(context).primaryColor,
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 } 

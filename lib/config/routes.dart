@@ -11,6 +11,7 @@ import '../screens/customer/weekly_schedule_setup.dart';
 import '../screens/delivery/delivery_map_screen.dart';
 import '../models/delivery_location.dart';
 
+import '../screens/customer/browse_restaurants_screen.dart'; // For CartScreen
 
 class AppRoutes {
   // Route names
@@ -23,11 +24,9 @@ class AppRoutes {
   static const String deliveryHome = '/delivery-home';
   static const String deliveryProfile = '/profiles';
   static const String weeklyScheduleSetup = '/weekly-schedule-setup';
-  static const String deliveryMap = '/navigation';
 
-
+  static const String cart = '/cart';
   // Route map
-  static Map<String, WidgetBuilder> get routes {
     return {
       splash: (context) =>  SplashScreen(),
       landing: (context) =>  HomePage(),
@@ -36,12 +35,14 @@ class AppRoutes {
       customerHome: (context) =>  CustomerHomeScreen(),
       restaurantHome: (context) =>  VendorHomePage(),
       deliveryHome: (context) =>  DeliveryHomeScreen(),
+<<<<<<< HEAD
       deliveryProfile: (context) =>  ProfileScreen(),
       weeklyScheduleSetup: (context) => WeeklyScheduleSetupScreen(),
-deliveryMap: (context) => DeliveryMapScreen(deliveries: ModalRoute.of(context)!.settings.arguments as List<DeliveryLocation>),    };
+=======
+      cart: (context) => CartScreen(), // Add Cart route
+    };
   }
 
-  // Handle unknown routes
   static Route<dynamic> onUnknownRoute(RouteSettings settings) {
     return MaterialPageRoute(
       builder: (context) => const NotFoundScreen(),

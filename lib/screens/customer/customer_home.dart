@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'order_history_screen.dart';
 import '../../config/routes.dart';
 import 'package:geolocator/geolocator.dart';
+import 'restaurant_menu_screen.dart';
 import 'browse_restaurants_screen.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
@@ -197,17 +198,100 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                 // Popular Restaurants
                 Text(
                   'Popular Near Campus',
-                    style: AppTextStyles.subHeader.copyWith(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: AppTextStyles.subHeader.copyWith(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
-                  SizedBox(height: 18),
-                  ...[
-                    {'name': 'MK Catering Services', 'location': 'Africa Hall', 'image': 'assets/images/MKcatering.png'},
-                    {'name': 'Lumumba Cafe', 'location': 'Lumumba Hall', 'image': 'assets/images/Lumumbacafe.png'},
-                    {"name": "Ssalongo's", 'location': 'Makerere Kikoni', 'image': "assets/images/ssalongo's.png"},
-                    {'name': 'Freddoz', 'location': 'Wandegeya', 'image': 'assets/images/freddoz.png'},
-                    {'name': 'Fresh Hot', 'location': 'Kikumi kikumi', 'image': 'assets/images/freshhot.png'},
-                  ].map((restaurant) => _buildModernRestaurantCard(restaurant['name']!, restaurant['location']!, restaurant['image']!)).toList(),
-                  SizedBox(height: 32),
+                SizedBox(height: 18),
+                // --- Firestore-powered restaurant list ---
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('restaurants')
+                      .where('name', whereIn: [
+                        'MK-Catering Services',
+                        'Fresh Hot',
+                        'Lumumba Cafe',
+                        'Freddoz',
+                        "Ssalongo's"
+                      ])
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return Center(child: CircularProgressIndicator());
+                    final docs = snapshot.data!.docs;
+                    if (docs.isEmpty) return Center(child: Text('No restaurants found.'));
+                    final seenNames = <String>{};
+                    final restaurants = docs
+                        .map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          data['docId'] = doc.id;
+                          return data;
+                        })
+                        .where((restaurant) => seenNames.add(restaurant['name']))
+                        .toList();
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: NeverScrollableScrollPhysics(),
+                      itemCount: restaurants.length,
+                      itemBuilder: (context, index) {
+                        final restaurant = restaurants[index];
+                        return Card(
+                          elevation: 5,
+                          margin: EdgeInsets.only(bottom: 18, left: 0, right: 0),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => RestaurantMenuScreen(
+                                    restaurantDocId: restaurant['docId'],
+                                    restaurantName: restaurant['name'],
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(18.0),
+                              child: Row(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: restaurant['profileImage'] != null && restaurant['profileImage'] != ''
+                                        ? Image.network(
+                                            restaurant['profileImage'],
+                                            width: 56,
+                                            height: 56,
+                                            fit: BoxFit.cover,
+                                          )
+                                        : Icon(Icons.restaurant, size: 56, color: Colors.grey[400]),
+                                  ),
+                                  SizedBox(width: 18),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(restaurant['name'] ?? 'No Name', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                                        SizedBox(height: 6),
+                                        Row(
+                                          children: [
+                                            Icon(Icons.location_on, color: Colors.green, size: 18),
+                                            SizedBox(width: 4),
+                                            Text(restaurant['location'] ?? '', style: TextStyle(color: Colors.black.withOpacity(0.7))),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(Icons.arrow_forward_ios, color: Colors.grey[400], size: 18),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+                SizedBox(height: 32),
               ],
               ),
             ),

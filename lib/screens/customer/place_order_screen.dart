@@ -6,6 +6,53 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/user_event.dart';
 import 'checkout_page.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
+// Models for Restaurant and MenuItem
+class MenuItem {
+  final String id;
+  final String name;
+  final int price;
+  final String imageUrl;
+
+  MenuItem({required this.id, required this.name, required this.price, required this.imageUrl});
+
+  factory MenuItem.fromFirestore(String id, Map<String, dynamic> data) {
+    final priceRaw = data['price'];
+    int price;
+    if (priceRaw is int) {
+      price = priceRaw;
+    } else if (priceRaw is double) {
+      price = priceRaw.toInt();
+    } else {
+      price = 0;
+    }
+    return MenuItem(
+      id: id,
+      name: data['name'] ?? '',
+      price: price,
+      imageUrl: data['imageUrl'] ?? '',
+    );
+  }
+}
+
+class Restaurant {
+  final String id;
+  final String name;
+  final String imageUrl;
+  final List<MenuItem> menu;
+
+  Restaurant({required this.id, required this.name, required this.imageUrl, required this.menu});
+
+  factory Restaurant.fromFirestore(String id, Map<String, dynamic> data, List<MenuItem> menu) {
+    return Restaurant(
+      id: id,
+      name: data['name'] ?? '',
+      imageUrl: data['profileImage'] ?? '', // Use profileImage for consistency
+      menu: menu,
+    );
+  }
+}
 
 class PlaceOrderScreen extends StatefulWidget {
   final DateTime? initialDate;
@@ -27,43 +74,13 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
   String? _location;
   Map<String, DateTime?>? _optimalMealTimes;
   bool _loadingMealTimes = false;
+  List<Restaurant> _restaurants = [];
+  Restaurant? _selectedRestaurant;
+  MenuItem? _selectedMenuItem;
+  bool _loadingRestaurants = false;
   List<Map<String, dynamic>> _ordersForDay = [];
 
   final List<String> mealTypes = ['Breakfast', 'Lunch', 'Supper'];
-  final List<String> restaurants = [
-    'MK Catering Services',
-    'Lumumba Cafe',
-    "Ssalongo's",
-    'Freddoz',
-    'Fresh Hot',
-  ];
-  final Map<String, List<Map<String, dynamic>>> restaurantFoods = {
-    'MK Catering Services': [
-      {'name': 'Pilau', 'price': 8000},
-      {'name': 'Chicken Stew', 'price': 10000},
-      {'name': 'Chapati', 'price': 2000},
-    ],
-    'Lumumba Cafe': [
-      {'name': 'Rolex', 'price': 3000},
-      {'name': 'Katogo', 'price': 4000},
-      {'name': 'Tea', 'price': 1500},
-    ],
-    "Ssalongo's": [
-      {'name': 'Matoke', 'price': 5000},
-      {'name': 'Beef Stew', 'price': 9000},
-      {'name': 'Rice', 'price': 3000},
-    ],
-    'Freddoz': [
-      {'name': 'Fish Fingers', 'price': 7000},
-      {'name': 'Beef Stew', 'price': 9000},
-      {'name': 'Chapati Roll', 'price': 2500},
-    ],
-    'Fresh Hot': [
-      {'name': 'Grilled Chicken', 'price': 12000},
-      {'name': 'Hot Wings', 'price': 8000},
-      {'name': 'Rice Bowl', 'price': 4000},
-    ],
-  };
 
   @override
   void initState() {
@@ -73,6 +90,7 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
     if (_optimalMealTimes == null) {
       _fetchOptimalMealTimes();
     }
+    _fetchRestaurants();
   }
 
   Future<void> _fetchOptimalMealTimes() async {
@@ -90,6 +108,33 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
     final dayEvents = events.where((e) => e.startTime.isAfter(start) && e.startTime.isBefore(end)).toList();
     _optimalMealTimes = _findOptimalMealTimes(dayEvents, _selectedDate!);
     setState(() { _loadingMealTimes = false; });
+  }
+
+  Future<void> _fetchRestaurants() async {
+    setState(() { _loadingRestaurants = true; });
+    final names = [
+      "MK-Catering Services",
+      "Fresh Hot",
+      "Lumumba Cafe",
+      "Freddoz",
+      "Ssalongo's"
+    ];
+    final snapshot = await FirebaseFirestore.instance
+        .collection('restaurants')
+        .where('name', whereIn: names)
+        .get();
+    List<Restaurant> restaurants = [];
+    for (final doc in snapshot.docs) {
+      final menuSnapshot = await doc.reference.collection('items').get();
+      final menu = menuSnapshot.docs.isNotEmpty
+          ? menuSnapshot.docs.map((m) => MenuItem.fromFirestore(m.id, m.data())).toList()
+          : <MenuItem>[];
+      restaurants.add(Restaurant.fromFirestore(doc.id, doc.data(), menu));
+    }
+    setState(() {
+      _restaurants = restaurants;
+      _loadingRestaurants = false;
+    });
   }
 
   Map<String, DateTime?> _findOptimalMealTimes(List<UserEvent> events, DateTime day) {
@@ -154,19 +199,43 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
             SizedBox(height: 16),
             _buildDropdown('Meal Type', mealTypes, _mealType, (val) => setState(() => _mealType = val)),
             SizedBox(height: 16),
-            _buildDropdown('Preferred Restaurant', restaurants, _restaurant, (val) {
-              setState(() {
-                _restaurant = val;
-                _food = null;
-              });
-            }),
+            if (_loadingRestaurants)
+              Center(child: CircularProgressIndicator())
+            else if (_restaurants.isEmpty)
+              Text('No restaurants available.')
+            else
+              _buildDropdown('Restaurant', _restaurants.map((r) => r.name).toList(), _restaurant, (val) {
+                setState(() {
+                  _restaurant = val;
+                  _food = null;
+                });
+              }),
             SizedBox(height: 16),
             _buildDropdown(
               'Food',
-              _restaurant != null ? restaurantFoods[_restaurant!]! : [],
+              _restaurant != null
+                  ? _restaurants.firstWhere((r) => r.name == _restaurant, orElse: () => Restaurant(id: '', name: '', imageUrl: '', menu: [])).menu.map((m) => m.name + ' (UGX ${m.price})').toList()
+                  : [],
               _food,
-              (val) => setState(() => _food = val),
-              enabled: _restaurant != null,
+              (val) => setState(() {
+                final selected = val;
+                // Parse food name and price from the selected string
+                String? foodName;
+                int? foodPrice;
+                final regExp = RegExp(r'^(.*) \(UGX (\d+)\)$');
+                final match = regExp.firstMatch(selected ?? '');
+                if (match != null) {
+                  foodName = match.group(1)?.trim();
+                  foodPrice = int.tryParse(match.group(2) ?? '');
+                } else {
+                  foodName = selected;
+                  foodPrice = null;
+                }
+                _food = foodName;
+                _foodPrice = foodPrice;
+              }),
+              enabled: _restaurant != null &&
+                  _restaurants.any((r) => r.name == _restaurant && r.menu.isNotEmpty),
             ),
             SizedBox(height: 16),
             _buildSectionTitle('Payment & Delivery'),
@@ -202,6 +271,7 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
                           builder: (context) => CheckoutPage(
                             orders: _ordersForDay,
                             optimalMealTimes: _optimalMealTimes,
+                            orderSource: 'schedule', // Pass the source
                           ),
                         ),
                       );
@@ -319,17 +389,29 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
           isExpanded: true,
           items: label == 'Food'
               ? items.map<DropdownMenuItem<String>>((item) => DropdownMenuItem(
-                    value: item['name'],
-                    child: Text('${item['name']} (UGX ${item['price']})'),
+                    value: item,
+                    child: Text(item),
                   )).toList()
               : items.map<DropdownMenuItem<String>>((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
           onChanged: enabled
               ? (val) {
                   if (label == 'Food') {
-                    final selected = items.firstWhere((item) => item['name'] == val, orElse: () => <String, dynamic>{});
+                    final selected = items.firstWhere((item) => item == val, orElse: () => '');
+                    // Parse food name and price from the selected string
+                    String? foodName;
+                    int? foodPrice;
+                    final regExp = RegExp(r'^(.*) \(UGX (\d+)\)$');
+                    final match = regExp.firstMatch(selected ?? '');
+                    if (match != null) {
+                      foodName = match.group(1)?.trim();
+                      foodPrice = int.tryParse(match.group(2) ?? '');
+                    } else {
+                      foodName = selected;
+                      foodPrice = null;
+                    }
                     setState(() {
-                      _food = val;
-                      _foodPrice = selected.isNotEmpty ? selected['price'] : null;
+                      _food = foodName;
+                      _foodPrice = foodPrice;
                     });
                   } else {
                     onChanged(val);
@@ -423,42 +505,27 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
         return;
       }
     }
-    // Save the order locally for summary
+    // Add the order to the local summary only
     setState(() {
       _ordersForDay.add({
         'mealType': _mealType,
         'restaurant': _restaurant,
         'food': _food,
         'foodPrice': _foodPrice,
+        'foodImage': null, // No image for simple text dropdowns
+        'restaurantImage': null, // No image for simple text dropdowns
         'paymentMethod': _paymentMethod,
         'location': _location,
         'orderDate': _selectedDate,
       });
+      // Reset only mealType, restaurant, food, paymentMethod
+      _mealType = null;
+      _restaurant = null;
+      _food = null;
+      _foodPrice = null;
+      _paymentMethod = null;
+      // Do NOT reset _location, keep it for convenience
     });
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Order Placed!'),
-        content: Text('Your order has been placed successfully.'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                // Reset only mealType, restaurant, food, paymentMethod
-                _mealType = null;
-                _restaurant = null;
-                _food = null;
-                _foodPrice = null;
-                _paymentMethod = null;
-                // Do NOT reset _location, keep it for convenience
-              });
-            },
-            child: Text('OK'),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _buildOrderSummary() {

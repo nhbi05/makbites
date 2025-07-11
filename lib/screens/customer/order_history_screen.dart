@@ -194,6 +194,16 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                     separatorBuilder: (_, __) => SizedBox(height: 12),
                     itemBuilder: (context, idx) {
                       final order = orders[idx];
+                      // Support both scheduled and browse orders
+                      String restaurant = order['restaurant'] ?? '';
+                      String food = order['food'] ?? '';
+                      String payment = order['paymentMethod'] ?? '';
+                      if (order['items'] != null && order['items'] is List && (order['items'] as List).isNotEmpty) {
+                        final firstItem = (order['items'] as List).first;
+                        restaurant = firstItem['restaurant'] ?? restaurant ?? 'Unknown';
+                        food = firstItem['name'] ?? food ?? 'Unknown';
+                        payment = ''; // Do not show payment for browse orders
+                      }
                       return Card(
                         elevation: 2,
                         child: Padding(
@@ -206,7 +216,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      '${order['mealType'] ?? 'Unknown Meal'}', 
+                                      '${order['mealType'] ?? (order['items'] != null ? 'Custom Order' : 'Unknown Meal')}',
                                       style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold, fontSize: 16)
                                     ),
                                   ),
@@ -227,9 +237,10 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                                 ],
                               ),
                               SizedBox(height: 12),
-                              _buildOrderDetail('Food', order['food'] ?? 'Unknown'),
-                              _buildOrderDetail('Restaurant', order['restaurant'] ?? 'Unknown'),
-                              _buildOrderDetail('Payment', order['paymentMethod'] ?? 'Unknown'),
+                              _buildOrderDetail('Food', food.isNotEmpty ? food : 'Unknown'),
+                              _buildOrderDetail('Restaurant', restaurant.isNotEmpty ? restaurant : 'Unknown'),
+                              if (payment.isNotEmpty)
+                                _buildOrderDetail('Payment', payment),
                               _buildOrderDetail('Location', order['location'] ?? 'Unknown'),
                               if (order['orderTime'] != null && order['orderTime'].toString().isNotEmpty)
                                 _buildOrderDetail('Order Time', order['orderTime']),

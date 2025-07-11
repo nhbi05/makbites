@@ -225,8 +225,8 @@ class AutomationService {
         // Calculate the next occurrence of this day and time
         final nextOccurrence = _getNextOccurrence(i + 1, mealSchedule.time);
         
-        // Schedule order 15 minutes before
-        final orderTime = nextOccurrence.subtract(Duration(minutes: 15));
+        // Schedule order 30 minutes before
+        final orderTime = nextOccurrence.subtract(Duration(minutes: 30));
         
         if (orderTime.isAfter(now)) {
           final order = AutomatedOrder(
@@ -352,7 +352,7 @@ class AutomationService {
 
         // Schedule the meal at the start of the gap
         final mealTime = gap.start;
-        final orderTime = mealTime.subtract(Duration(minutes: deliveryBuffer));
+        final orderTime = mealTime.subtract(Duration(minutes: 30));
         if (orderTime.isBefore(now)) continue; // Don't schedule in the past
 
         // Create an automated order (simulate with a placeholder meal/restaurant)
