@@ -15,10 +15,7 @@ import google_sign_in_ios
 import location
 import path_provider_foundation
 import sqflite_darwin
-<<<<<<< HEAD
 import url_launcher_macos
-=======
->>>>>>> 8d30b0b7e011b05b0a03856cf98a13ee23d675a1
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   FLTFirebaseFirestorePlugin.register(with: registry.registrar(forPlugin: "FLTFirebaseFirestorePlugin"))
@@ -31,8 +28,5 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   LocationPlugin.register(with: registry.registrar(forPlugin: "LocationPlugin"))
   PathProviderPlugin.register(with: registry.registrar(forPlugin: "PathProviderPlugin"))
   SqflitePlugin.register(with: registry.registrar(forPlugin: "SqflitePlugin"))
-<<<<<<< HEAD
   UrlLauncherPlugin.register(with: registry.registrar(forPlugin: "UrlLauncherPlugin"))
-=======
->>>>>>> 8d30b0b7e011b05b0a03856cf98a13ee23d675a1
 }
