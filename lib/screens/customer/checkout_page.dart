@@ -41,20 +41,27 @@ class _CheckoutPageState extends State<CheckoutPage> {
     if (user == null) return;
     for (final order in _editableOrders) {
       try {
+        // Calculate scheduled send time
+        final mealType = order['mealType'];
+        final optimalMealTimes = widget.optimalMealTimes;
+        DateTime? scheduledSendTime;
+        if (optimalMealTimes != null && optimalMealTimes[mealType] != null) {
+          scheduledSendTime = optimalMealTimes[mealType]!.subtract(Duration(minutes: 30));
+        }
         await FirebaseFirestore.instance.collection('orders').add({
           'userId': user.uid,
           'mealType': order['mealType'],
           'food': order['food'],
           'restaurant': order['restaurant'],
           'foodPrice': order['foodPrice'],
-          'paymentMethod': order['paymentMethod'],
           'location': order['location'],
-          'orderTime': _getOrderTime(order['mealType']),
+          'orderTime': scheduledSendTime, // This is the time to send to restaurant
           'orderDate': order['orderDate'] ?? DateTime.now(),
           'clientTimestamp': DateTime.now(),
           'serverTimestamp': FieldValue.serverTimestamp(),
-          'status': 'pending',
-          'orderSource': widget.orderSource, // Save the source
+          'status': 'pending', // Not sent yet
+          'orderSource': widget.orderSource,
+          'scheduledSendTime': scheduledSendTime, // Add this field
         });
       } catch (e) {
         print('Error saving order: $e');
@@ -113,12 +120,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         ),
                         SizedBox(height: 8),
                         TextFormField(
-                          initialValue: order['paymentMethod'],
-                          decoration: InputDecoration(labelText: 'Payment Method'),
-                          onChanged: (val) => setState(() => order['paymentMethod'] = val),
-                        ),
-                        SizedBox(height: 8),
-                        TextFormField(
                           initialValue: order['location'],
                           decoration: InputDecoration(labelText: 'Delivery Location'),
                           onChanged: (val) => setState(() => order['location'] = val),
@@ -138,7 +139,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 child: _isSaving
                     ? CircularProgressIndicator()
                     : ElevatedButton.icon(
-                        onPressed: _editableOrders.every((order) => order['paymentMethod'] != null && order['paymentMethod'].toString().trim().isNotEmpty && order['location'] != null && order['location'].toString().trim().isNotEmpty)
+                        onPressed: _editableOrders.every((order) => order['location'] != null && order['location'].toString().trim().isNotEmpty)
                             ? () async {
                                 setState(() => _isSaving = true);
                                 try {

@@ -88,16 +88,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           appBar: AppBar(
             title: Text('MakBites'),
             backgroundColor: AppColors.primary,
-            actions: [
-              IconButton(
-                icon: Icon(Icons.notifications_outlined),
-                onPressed: () {},
-              ),
-              IconButton(
-                icon: Icon(Icons.shopping_cart_outlined),
-                onPressed: () {},
-              ),
-            ],
           ),
           body: Container(
             decoration: BoxDecoration(
@@ -479,13 +469,14 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
           icon: Icon(Icons.receipt_long),
           label: 'Orders',
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person),
-          label: 'Profile',
-        ),
       ],
       onTap: (index) {
-        if (index == 2) {
+        if (index == 1) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => BrowseRestaurantsScreen()),
+          );
+        } else if (index == 2) {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => OrderHistoryScreen()),

@@ -250,7 +250,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         'deliveryFee': deliveryFee,
         'clientTimestamp': DateTime.now(),
         'serverTimestamp': FieldValue.serverTimestamp(),
-        'status': 'pending',
+        'status': 'sent', // Immediately sent to restaurant
+        'sentAt': DateTime.now(), // Add sent timestamp
         'orderSource': 'browse',
       });
     } catch (e) {

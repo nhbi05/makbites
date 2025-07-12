@@ -30,7 +30,11 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
         .where('userId', isEqualTo: user.uid)
         .get();
     
-    final orders = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+    final orders = snapshot.docs.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      data['docId'] = doc.id;
+      return data;
+    }).toList();
     
     // Filter by date if needed
     if (!_showAllOrders && _selectedDate != null) {
@@ -236,14 +240,60 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                                   ),
                                 ],
                               ),
+                              SizedBox(height: 8),
+                              // Status label
+                              Row(
+                                children: [
+                                  Text('Status: '),
+                                  Text(
+                                    _getStatusDisplay(order),
+                                    style: TextStyle(
+                                      color: _getStatusColor(order),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Spacer(),
+                                  if (_canCancelOrder(order))
+                                    TextButton(
+                                      onPressed: () async {
+                                        final confirmed = await showDialog<bool>(
+                                          context: context,
+                                          builder: (context) => AlertDialog(
+                                            title: Text('Cancel Order'),
+                                            content: Text('Are you sure you want to cancel this order?'),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.of(context).pop(false),
+                                                child: Text('No'),
+                                              ),
+                                              TextButton(
+                                                onPressed: () => Navigator.of(context).pop(true),
+                                                child: Text('Yes, Cancel'),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                        if (confirmed == true) {
+                                          await _cancelOrder(order);
+                                        }
+                                      },
+                                      child: Text('Cancel', style: TextStyle(color: Colors.red)),
+                                    ),
+                                ],
+                              ),
                               SizedBox(height: 12),
                               _buildOrderDetail('Food', food.isNotEmpty ? food : 'Unknown'),
                               _buildOrderDetail('Restaurant', restaurant.isNotEmpty ? restaurant : 'Unknown'),
                               if (payment.isNotEmpty)
                                 _buildOrderDetail('Payment', payment),
                               _buildOrderDetail('Location', order['location'] ?? 'Unknown'),
-                              if (order['orderTime'] != null && order['orderTime'].toString().isNotEmpty)
-                                _buildOrderDetail('Order Time', order['orderTime']),
+                              if (order['orderTime'] != null)
+                                _buildOrderDetail(
+                                  'Order Time',
+                                  order['orderTime'] is Timestamp
+                                    ? DateFormat('HH:mm').format((order['orderTime'] as Timestamp).toDate())
+                                    : order['orderTime'].toString(),
+                                ),
                               if (order['clientTimestamp'] != null)
                                 _buildOrderDetail('Placed', DateFormat('MMM dd, yyyy HH:mm').format((order['clientTimestamp'] as Timestamp).toDate())),
                             ],
@@ -288,5 +338,65 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
         ],
       ),
     );
+  }
+
+  String _getStatusDisplay(Map<String, dynamic> order) {
+    if (order['status'] == 'pending') {
+      // Differentiate between scheduled and browse orders
+      if (order['orderSource'] == 'schedule' || order['scheduledSendTime'] != null) {
+        return 'Scheduled';
+      } else {
+        return 'Processing';
+      }
+    } else if (order['status'] == 'sent') {
+      return 'Sent';
+    } else if (order['status'] == 'cancelled') {
+      return 'Cancelled';
+    } else {
+      return order['status'] ?? 'Unknown';
+    }
+  }
+
+  Color _getStatusColor(Map<String, dynamic> order) {
+    if (order['status'] == 'pending') {
+      if (order['orderSource'] == 'schedule' || order['scheduledSendTime'] != null) {
+        return Colors.orange; // Scheduled orders
+      } else {
+        return Colors.blue; // Processing orders
+      }
+    } else if (order['status'] == 'sent') {
+      return Colors.green;
+    } else if (order['status'] == 'cancelled') {
+      return Colors.red;
+    } else {
+      return Colors.grey;
+    }
+  }
+
+  bool _canCancelOrder(Map<String, dynamic> order) {
+    if (order['status'] == 'pending') return true;
+    if (order['status'] == 'sent' && order['sentAt'] != null) {
+      final sentAt = order['sentAt'];
+      DateTime sentTime;
+      if (sentAt is Timestamp) {
+        sentTime = sentAt.toDate();
+      } else if (sentAt is DateTime) {
+        sentTime = sentAt;
+      } else {
+        return false;
+      }
+      return DateTime.now().difference(sentTime).inMinutes < 5;
+    }
+    return false;
+  }
+
+  Future<void> _cancelOrder(Map<String, dynamic> order) async {
+    final docId = order['docId'];
+    if (docId == null) return;
+    await FirebaseFirestore.instance.collection('orders').doc(docId).update({
+      'status': 'cancelled',
+      'cancelledAt': DateTime.now(),
+    });
+    setState(() {}); // Refresh UI
   }
 } 
