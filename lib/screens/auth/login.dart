@@ -179,6 +179,16 @@ void _goHome(String role) {
           password: _passwordController.text.trim(),
         );
 
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+            'uid': user.uid,
+            'email': user.email ?? '',
+            'phone': user.phoneNumber ?? '',
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+
         final uid = FirebaseAuth.instance.currentUser!.uid;
         final snapshot = await FirebaseFirestore.instance
             .collection('users')

@@ -58,7 +58,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
         String? customerPhone = order['customerPhone'];
         if (customerPhone == null || customerPhone.isEmpty) {
           final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+          print('Fetched user doc for ${user.uid}: ${userDoc.data()}'); // <-- Add this
           customerPhone = userDoc.data()?['phone'] ?? '';
+          print('Fetched phone: $customerPhone'); // <-- And this
         }
         await FirebaseFirestore.instance.collection('orders').add({
           'userId': user.uid,

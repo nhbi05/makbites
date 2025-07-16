@@ -522,7 +522,9 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId != null) {
       final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+      print('Fetched user doc for $userId: ${userDoc.data()}'); // <-- Add this
       customerPhone = userDoc.data()?['phone'] ?? '';
+      print('Fetched phone: $customerPhone'); // <-- And this
     }
     // Add the order to the local summary only
     setState(() {

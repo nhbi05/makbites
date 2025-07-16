@@ -247,15 +247,16 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
     }
   }
 
-  void _callCustomerFor(String phone) {
-    if (phone.isEmpty) {
+  void _callCustomerFor(String phoneNumber) async {
+    final formatted = phoneNumber.startsWith('+') ? phoneNumber : '+$phoneNumber';
+    final url = 'tel:$formatted';
+    if (await canLaunch(url)) {
+      await launch(url);
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No customer phone number available.')),
+        SnackBar(content: Text('Could not call $formatted')),
       );
-      return;
     }
-    final url = 'tel:$phone';
-    _launchUrl(url);
   }
 
   Future<void> _loadDeliveryDetails() async {

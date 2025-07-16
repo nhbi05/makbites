@@ -1235,15 +1235,14 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
   }
 
   void _callCustomerFor(String phoneNumber) async {
-    final Uri launchUri = Uri(
-      scheme: 'tel',
-      path: phoneNumber,
-    );
+    // Ensure phone number starts with +
+    final formatted = phoneNumber.startsWith('+') ? phoneNumber : '+$phoneNumber';
+    final Uri launchUri = Uri(scheme: 'tel', path: formatted);
     if (await canLaunchUrl(launchUri)) {
       await launchUrl(launchUri);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not call $phoneNumber')),
+        SnackBar(content: Text('Could not call $formatted')),
       );
     }
   }
