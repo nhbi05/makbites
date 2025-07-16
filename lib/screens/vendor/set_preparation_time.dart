@@ -104,6 +104,18 @@ class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
     setState(() => _isSubmitting = true);
 
     try {
+      // First, get the order details
+      final orderDoc = await FirebaseFirestore.instance
+          .collection('orders')
+          .doc(widget.orderId)
+          .get();
+      
+      if (!orderDoc.exists) {
+        throw Exception('Order not found');
+      }
+
+      final orderData = orderDoc.data()!;
+      
       Map<String, dynamic> updateData = {
         'status': 'Start Preparing',
         'estimatedPreparationTime': selectedTime,
@@ -115,10 +127,68 @@ class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
         updateData['assignedRiderId'] = selectedRiderId!;
         updateData['assignedRiderName'] = selectedRider['name'];
 
+        // Update rider's total deliveries count
         await FirebaseFirestore.instance
             .collection('delivery_riders')
             .doc(selectedRiderId)
             .update({'total_deliveries': FieldValue.increment(1)});
+
+        // Create delivery document in deliveries collection
+        // --- IMPROVED: Copy location fields from order with proper null checks ---
+        final customerLocation = orderData['customerLocation'];
+        final locationLat = orderData['locationLat'];
+        final locationLng = orderData['locationLng'];
+        final customerAddress = orderData['customerAddress'] ?? orderData['location'] ?? '';
+
+        Map<String, dynamic>? deliveryLocation;
+        double? lat;
+        double? lng;
+
+        if (customerLocation != null &&
+            customerLocation['latitude'] != null &&
+            customerLocation['longitude'] != null) {
+          lat = customerLocation['latitude'];
+          lng = customerLocation['longitude'];
+          deliveryLocation = {'latitude': lat, 'longitude': lng};
+        } else if (locationLat != null && locationLng != null) {
+          lat = locationLat;
+          lng = locationLng;
+          deliveryLocation = {'latitude': lat, 'longitude': lng};
+        } else {
+          deliveryLocation = null;
+          lat = null;
+          lng = null;
+        }
+        await FirebaseFirestore.instance.collection('deliveries').add({
+          'orderId': widget.orderId,
+          'restaurantId': orderData['restaurant'] ?? widget.vendorRestaurantIdOrName,
+          'customerId': orderData['userId'] ?? '',
+          'customerName': orderData['location'] ?? 'Customer', // Using location as customer name for now
+          'customerPhone': orderData['customerPhone'] ?? '', // Add customer phone if available
+          'deliveryAddress': customerAddress,
+          'customerLocation': deliveryLocation,
+          'locationLat': lat,
+          'locationLng': lng,
+          'orderItems': [
+            {
+              'name': orderData['food'] ?? 'Food Item',
+              'price': orderData['foodPrice'] ?? 0,
+              'quantity': 1,
+            }
+          ],
+          'totalAmount': orderData['foodPrice'] ?? 0,
+          'deliveryFee': 0, // Will be calculated based on distance
+          'status': 'pending_assignment',
+          'assignedRiderId': selectedRiderId,
+          'assignedAt': FieldValue.serverTimestamp(),
+          'estimatedDeliveryTime': null,
+          'estimatedPickupTime': null,
+          'actualDeliveryTime': null,
+          'actualPickupTime': null,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        // --- END IMPROVED LOCATION LOGIC ---
       }
 
       updateData.removeWhere((key, value) => value == null);
@@ -130,7 +200,7 @@ class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
 
       Navigator.pop(context, true); // trigger refresh
     } catch (e) {
-      _showSnackBar('Error: Could not update order.');
+      _showSnackBar('Error: Could not update order. ${e.toString()}');
       setState(() => _isSubmitting = false);
     }
   }

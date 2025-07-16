@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../constants/app_colours.dart';
 import '../../constants/text_styles.dart';
 import '../../config/routes.dart';
 import './delivery_map_screen.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../models/delivery_location.dart'; // Import DeliveryLocation model
+import '../../services/delivery_assignment_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -22,81 +24,16 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
   bool _hasActiveDelivery = false; // Changed to false initially
   int _currentNavIndex = 0;
   
-  // Mock data - replace with actual data from your backend
+  // Service for handling delivery assignments
+  final DeliveryAssignmentService _deliveryService = DeliveryAssignmentService();
+  
+  // Real data from Firebase
   Map<String, dynamic> _todayStats = {
-    'deliveries': 12,
-    'distance': 45
+    'deliveries': 0,
+    'distance': 0
   };
 
-  List<DeliveryLocation> _availableDeliveries = [
-    DeliveryLocation(
-      id: '1',
-      name: 'Mary Stuart Hall',
-      address: 'Mary Stuart Hall',
-      coordinates: LatLng(0.331635, 32.566491), 
-      customerName: 'John Doe',
-      customerPhone: '+256700123456',
-      items: 'Beef Burger Combo + Fries',
-      earning: 4500,
-      isPickup: false,
-    ),
-    DeliveryLocation(
-      id: '2',
-      name: 'Lumumba Hall',
-      address: 'Lumumba Hall',
-      coordinates: LatLng(0.331635, 32.566491), // Example coordinates
-      customerName: 'Jane Smith',
-      customerPhone: '+256700123457',
-      items: 'Margherita Pizza + Drinks',
-      earning: 6200,
-      isPickup: false,
-    ),
-    DeliveryLocation(
-      id: '3',
-      name: 'uni Hall',
-      address: 'Block C, Complex',
-      coordinates: LatLng(0.333118, 32.572447),
-      customerName: 'Alice Brown',
-      customerPhone: '+256700123458',
-      items: 'Chicken Wrap + Soda',
-      earning: 5000,
-      isPickup: false,
-    ),
-    DeliveryLocation(
-      id: '4',
-      name: 'Livingstone ',
-      address: 'livingstome room 7',
-      coordinates: LatLng( 0.338868, 32.567993),
-      customerName: 'Bob Green',
-      customerPhone: '+256700123459',
-      items: 'Rolex + Juice',
-      earning: 3500,
-      isPickup: false,
-    ),
-    DeliveryLocation(
-      id: '5',
-      name: "africa hall", 
-      address: 'Block D, Africa Hall',
-      coordinates: LatLng(0.337846, 32.568913),
-      customerName: 'Carol White',
-      customerPhone: '+256700123460',
-      items: 'Chapati + Tea',
-      earning: 4000,
-      isPickup: false,
-    ),
-    DeliveryLocation(
-      id: '6',
-      name: "Cocis", 
-      address: 'Block D, Cocis',
-      coordinates: LatLng(0.331419, 32.570636),
-      customerName: 'Carol White',
-      customerPhone: '+256700123460',
-      items: 'Chapati + Tea',
-      earning: 4000,
-      isPickup: false,
-    ),
-  ];
-
+  List<DeliveryLocation> _availableDeliveries = [];
   List<DeliveryLocation> _acceptedDeliveries = []; // New list to hold accepted deliveries
 
   DeliveryLocation? _currentDelivery; // Will be set when a route is optimized and started
@@ -124,6 +61,7 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
   void initState() {
     super.initState();
     _getCurrentLocation().then((_) => _getOptimizedRoute());
+    _loadTodayStats();
   }
 
   @override
@@ -185,10 +123,13 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
     }
   }
 
-  void _toggleOnlineStatus() {
+  void _toggleOnlineStatus() async {
     setState(() {
       _isOnline = !_isOnline;
     });
+    
+    // Update rider status in Firebase
+    await _deliveryService.updateRiderStatus(isOnline: _isOnline);
     
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -207,13 +148,90 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
       ),
     );
     
-    // Simulate refresh
-    setState(() {
-      // You would update _availableDeliveries from your backend here
-    });
+    // Refresh stats
+    _loadTodayStats();
   }
 
-  void _acceptDelivery(DeliveryLocation delivery) {
+  Future<void> _loadTodayStats() async {
+    try {
+      final stats = await _deliveryService.getRiderStatistics();
+      setState(() {
+        _todayStats = {
+          'deliveries': stats['totalDeliveries'] ?? 0,
+          'distance': stats['totalEarnings'] ?? 0, // Using earnings as distance for now
+        };
+      });
+    } catch (e) {
+      print('Failed to load stats: $e');
+    }
+  }
+
+  // Complete delivery function
+  Future<void> _completeDelivery(String deliveryId) async {
+    try {
+      await _deliveryService.completeDelivery(deliveryId);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Delivery completed successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to complete delivery: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Test function to create a sample delivery (remove in production)
+  Future<void> _createTestDelivery() async {
+    try {
+      await FirebaseFirestore.instance.collection('deliveries').add({
+        'orderId': 'TEST-ORDER-${DateTime.now().millisecondsSinceEpoch}',
+        'restaurantId': 'test-restaurant',
+        'customerId': 'test-customer',
+        'customerName': 'Test Customer',
+        'customerPhone': '+256700123456',
+        'deliveryAddress': 'Makerere University, Kampala',
+        'customerLocation': {
+          'latitude': 0.331635,
+          'longitude': 32.566491,
+        },
+        'orderItems': [
+          {
+            'name': 'Chicken Pilau',
+            'price': 10000,
+            'quantity': 1,
+          }
+        ],
+        'totalAmount': 10000,
+        'deliveryFee': 1000,
+        'status': 'pending_assignment',
+        'assignedRiderId': null,
+        'assignedAt': null,
+        'estimatedDeliveryTime': null,
+        'estimatedPickupTime': null,
+        'actualDeliveryTime': null,
+        'actualPickupTime': null,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Test delivery created successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to create test delivery: ${e.toString()}')),
+      );
+    }
+  }
+
+  void _acceptDelivery(DeliveryLocation delivery) async {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -225,20 +243,33 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
             child: Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              setState(() {
-                _acceptedDeliveries.add(delivery);
-                _availableDeliveries.removeWhere((d) => d.id == delivery.id);
-                _hasActiveDelivery = _acceptedDeliveries.isNotEmpty; // Update active delivery status
-              });
               
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Delivery accepted! Added to your accepted list.'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+              try {
+                // Accept delivery in Firebase
+                await _deliveryService.acceptDelivery(delivery.id);
+                
+                setState(() {
+                  _acceptedDeliveries.add(delivery);
+                  _availableDeliveries.removeWhere((d) => d.id == delivery.id);
+                  _hasActiveDelivery = _acceptedDeliveries.isNotEmpty;
+                });
+                
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Delivery accepted! Added to your accepted list.'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Failed to accept delivery: ${e.toString()}'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
             child: Text('Accept', style: TextStyle(color: Colors.white)),
@@ -318,6 +349,20 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
               () => Navigator.pushNamed(context, "/deliveries"),
             )),
           ],
+        ),
+        SizedBox(height: 12),
+        // Test button - remove in production
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _createTestDelivery,
+            icon: Icon(Icons.add),
+            label: Text("Create Test Delivery"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+          ),
         ),
       ],
     );
@@ -418,18 +463,12 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
               _buildQuickActions(),
               SizedBox(height: 24),
               
-              // Current Delivery (if any)
-              if (_hasActiveDelivery && _currentDelivery != null) ...[
-                _buildCurrentDeliverySection(),
-                SizedBox(height: 24),
-              ],
-              
-              // Available Deliveries
-              _buildAvailableDeliveriesSection(),
+              // Available Deliveries (Real-time from Firebase)
+              _buildAvailableDeliveriesStream(),
               SizedBox(height: 24),
               
-              // Accepted Deliveries Section
-              _buildAcceptedDeliveriesSection(),
+              // Accepted Deliveries Section (Real-time from Firebase)
+              _buildAcceptedDeliveriesStream(),
               SizedBox(height: 24),
 
               // Recent Deliveries
@@ -439,14 +478,29 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
         ),
       ),
       bottomNavigationBar: _buildBottomNav(),
-      floatingActionButton: _acceptedDeliveries.isNotEmpty
-          ? FloatingActionButton.extended(
-              onPressed: _viewMultiDeliveryMap,
+      floatingActionButton: StreamBuilder<QuerySnapshot>(
+        stream: _deliveryService.getAssignedDeliveries(),
+        builder: (context, snapshot) {
+          if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+            return FloatingActionButton.extended(
+              onPressed: () {
+                final deliveries = snapshot.data!.docs
+                    .map((doc) => _deliveryService.deliveryToLocation(doc))
+                    .toList();
+                Navigator.pushNamed(
+                  context,
+                  AppRoutes.deliveryMap,
+                  arguments: deliveries,
+                );
+              },
               backgroundColor: AppColors.primary,
               icon: Icon(Icons.map, color: AppColors.white),
               label: Text("View Accepted Deliveries", style: TextStyle(color: AppColors.white)),
-            )
-          : null,
+            );
+          }
+          return SizedBox.shrink();
+        },
+      ),
     );
   }
 
@@ -648,7 +702,7 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
     );
   }
 
- Widget _buildAvailableDeliveriesSection() {
+   Widget _buildAvailableDeliveriesStream() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -663,62 +717,98 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
           ],
         ),
         SizedBox(height: 16),
-        if (_availableDeliveries.isEmpty)
-          Center(
-            child: Padding(
-              padding: EdgeInsets.all(32),
-              child: Column(
-                children: [
-                  Icon(Icons.inbox, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(
-                    "No new deliveries available",
-                    style: TextStyle(color: Colors.grey)),
-                ],
-              ),
-            ),
-          )
-        else
-          ...List.generate(_availableDeliveries.length, (index) {
-            final delivery = _availableDeliveries[index];
-            return Padding(
-              padding: EdgeInsets.only(bottom: 12),
-              child: _buildDeliveryCard(delivery),
+        StreamBuilder<QuerySnapshot>(
+          stream: _deliveryService.getAvailableDeliveries(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(child: CircularProgressIndicator());
+            }
+
+            if (snapshot.hasError) {
+              return Center(
+                child: Text('Error loading deliveries: ${snapshot.error}'),
+              );
+            }
+
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Column(
+                    children: [
+                      Icon(Icons.inbox, size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text(
+                        "No new deliveries available",
+                        style: TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return Column(
+              children: snapshot.data!.docs.map((doc) {
+                final delivery = _deliveryService.deliveryToLocation(doc);
+                return Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: _buildDeliveryCard(delivery),
+                );
+              }).toList(),
             );
-          }),
+          },
+        ),
       ],
     );
   }
 
-  Widget _buildAcceptedDeliveriesSection() {
+  Widget _buildAcceptedDeliveriesStream() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text("Accepted Deliveries", style: AppTextStyles.subHeader),
         SizedBox(height: 16),
-        if (_acceptedDeliveries.isEmpty)
-          Center(
-            child: Padding(
-              padding: EdgeInsets.all(32),
-              child: Column(
-                children: [
-                  Icon(Icons.check_circle_outline, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(
-                    "No deliveries accepted yet.",
-                    style: TextStyle(color: Colors.grey)),
-                ],
-              ),
-            ),
-          )
-        else
-          ...List.generate(_acceptedDeliveries.length, (index) {
-            final delivery = _acceptedDeliveries[index];
-            return Padding(
-              padding: EdgeInsets.only(bottom: 12),
-              child: _buildAcceptedDeliveryCard(delivery),
+        StreamBuilder<QuerySnapshot>(
+          stream: _deliveryService.getAssignedDeliveries(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(child: CircularProgressIndicator());
+            }
+
+            if (snapshot.hasError) {
+              return Center(
+                child: Text('Error loading accepted deliveries: ${snapshot.error}'),
+              );
+            }
+
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Column(
+                    children: [
+                      Icon(Icons.check_circle_outline, size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text(
+                        "No deliveries accepted yet.",
+                        style: TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return Column(
+              children: snapshot.data!.docs.map((doc) {
+                final delivery = _deliveryService.deliveryToLocation(doc);
+                return Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: _buildAcceptedDeliveryCard(delivery),
+                );
+              }).toList(),
             );
-          }),
+          },
+        ),
       ],
     );
   }
@@ -945,6 +1035,8 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
           ),
           SizedBox(height: 8),
           Text(delivery.address, style: TextStyle(color: Colors.grey)),
+          SizedBox(height: 8),
+          Text(delivery.items, style: TextStyle(color: Colors.grey)),
           SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -958,6 +1050,17 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
                     style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold),
                   ),
                 ],
+              ),
+              ElevatedButton(
+                onPressed: () => _completeDelivery(delivery.id),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                child: Text(
+                  'Complete',
+                  style: TextStyle(color: Colors.white, fontSize: 12),
+                ),
               ),
             ],
           ),

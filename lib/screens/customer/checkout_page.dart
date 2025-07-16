@@ -5,6 +5,9 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'customer_home.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 
 class CheckoutPage extends StatefulWidget {
   final List<Map<String, dynamic>> orders;
@@ -19,6 +22,9 @@ class CheckoutPage extends StatefulWidget {
 class _CheckoutPageState extends State<CheckoutPage> {
   late List<Map<String, dynamic>> _editableOrders;
   bool _isSaving = false;
+  String? _locationAddress;
+  double? _locationLat;
+  double? _locationLng;
 
   @override
   void initState() {
@@ -48,6 +54,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
         if (optimalMealTimes != null && optimalMealTimes[mealType] != null) {
           scheduledSendTime = optimalMealTimes[mealType]!.subtract(Duration(minutes: 30));
         }
+        // Get customer phone from order or fetch from user profile
+        String? customerPhone = order['customerPhone'];
+        if (customerPhone == null || customerPhone.isEmpty) {
+          final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+          customerPhone = userDoc.data()?['phone'] ?? '';
+        }
         await FirebaseFirestore.instance.collection('orders').add({
           'userId': user.uid,
           'mealType': order['mealType'],
@@ -55,6 +67,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'restaurant': order['restaurant'],
           'foodPrice': order['foodPrice'],
           'location': order['location'],
+          'locationLat': order['locationLat'],
+          'locationLng': order['locationLng'],
           'orderTime': scheduledSendTime, // This is the time to send to restaurant
           'orderDate': order['orderDate'] ?? DateTime.now(),
           'clientTimestamp': DateTime.now(),
@@ -62,6 +76,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'status': 'pending', // Not sent yet
           'orderSource': widget.orderSource,
           'scheduledSendTime': scheduledSendTime, // Add this field
+          'customerLocation': {
+            'latitude': order['locationLat'],
+            'longitude': order['locationLng'],
+          },
+          'customerPhone': customerPhone, // <-- Ensure phone is saved
         });
       } catch (e) {
         print('Error saving order: $e');

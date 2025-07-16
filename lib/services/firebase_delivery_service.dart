@@ -26,6 +26,20 @@ class FirebaseDeliveryService {
     required Map<String, dynamic> orderDetails,
   }) async {
     try {
+      // --- FETCH THE ORDER DOCUMENT ---
+      final orderId = orderDetails['orderId'];
+      Map<String, dynamic>? orderData;
+      if (orderId != null) {
+        final orderDoc = await _ordersCollection.doc(orderId).get();
+        orderData = orderDoc.data() as Map<String, dynamic>?;
+      }
+
+      // --- COPY LOCATION FIELDS FROM ORDER ---
+      final customerLocation = orderData?['customerLocation'];
+      final locationLat = orderData?['locationLat'];
+      final locationLng = orderData?['locationLng'];
+      final deliveryAddress = orderData?['location'];
+
       // Create main delivery document
       DocumentReference deliveryRef = await _deliveriesCollection.add({
         'customerId': customerId,
@@ -41,6 +55,12 @@ class FirebaseDeliveryService {
         'actualDuration': null,
         'totalDistance': null,
         'isOptimized': false,
+        // --- ADD LOCATION FIELDS ---
+        'customerLocation': customerLocation,
+        'locationLat': locationLat,
+        'locationLng': locationLng,
+        'deliveryAddress': deliveryAddress,
+        'customerPhone': orderData?['customerPhone'] ?? '',
       });
       
       // Add delivery locations as subcollection
