@@ -27,18 +27,20 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
   List<int>? _waypointOrder; // New field to store the optimized order
   LatLng? _currentLocation;
   int _currentOptimizedIndex = 0;
+  late List<DeliveryLocation> _activeDeliveries;
 
   final String _googleApiKey = 'AIzaSyAS10x2khf_QHLIGeyWIADDpoGLgaUkln0'; // <-- Replace with your real API key
 
   @override
   void initState() {
     super.initState();
+    _activeDeliveries = List.from(widget.deliveries); // Make a mutable copy
     _initializeMap();
     _loadDeliveryDetails();
   }
 
   Future<void> _initializeMap() async {
-    if (widget.deliveries.isNotEmpty) {
+    if (_activeDeliveries.isNotEmpty) {
       await _getCurrentLocation();
       _createMarkers();
       _calculateBounds();
@@ -77,7 +79,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
   }
 
   void _createMarkers() {
-    _markers = widget.deliveries.map((delivery) {
+    _markers = _activeDeliveries.map((delivery) {
       return Marker(
         markerId: MarkerId(delivery.id),
         position: delivery.coordinates,
@@ -95,14 +97,14 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
   }
 
   void _calculateBounds() {
-    if (widget.deliveries.isEmpty) return;
+    if (_activeDeliveries.isEmpty) return;
 
-    double minLat = widget.deliveries[0].coordinates.latitude;
-    double maxLat = widget.deliveries[0].coordinates.latitude;
-    double minLng = widget.deliveries[0].coordinates.longitude;
-    double maxLng = widget.deliveries[0].coordinates.longitude;
+    double minLat = _activeDeliveries[0].coordinates.latitude;
+    double maxLat = _activeDeliveries[0].coordinates.latitude;
+    double minLng = _activeDeliveries[0].coordinates.longitude;
+    double maxLng = _activeDeliveries[0].coordinates.longitude;
 
-    for (var delivery in widget.deliveries) {
+    for (var delivery in _activeDeliveries) {
       final lat = delivery.coordinates.latitude;
       final lng = delivery.coordinates.longitude;
       
@@ -147,17 +149,17 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
   void _createRoutePolylines() {
     _polylines.clear();
     
-    if (widget.deliveries.length < 2) return;
+    if (_activeDeliveries.length < 2) return;
 
-    for (int i = 0; i < widget.deliveries.length - 1; i++) {
+    for (int i = 0; i < _activeDeliveries.length - 1; i++) {
       _polylines.add(
         Polyline(
           polylineId: PolylineId('route_$i'),
           color: AppColors.primary,
           width: 4,
           points: [
-            widget.deliveries[i].coordinates,
-            widget.deliveries[i + 1].coordinates,
+            _activeDeliveries[i].coordinates,
+            _activeDeliveries[i + 1].coordinates,
           ],
         ),
       );
@@ -165,7 +167,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
   }
 
   void _nextDelivery() {
-    if (_currentDeliveryIndex < widget.deliveries.length - 1) {
+    if (_currentDeliveryIndex < _activeDeliveries.length - 1) {
       setState(() {
         _currentDeliveryIndex++;
         _moveCameraToCurrent();
@@ -183,21 +185,21 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
   }
 
   void _moveCameraToCurrent() {
-    if (widget.deliveries.isEmpty) return;
+    if (_activeDeliveries.isEmpty) return;
     
-    final delivery = widget.deliveries[_currentDeliveryIndex];
+    final delivery = _activeDeliveries[_currentDeliveryIndex];
     _mapController.animateCamera(
       CameraUpdate.newLatLngZoom(delivery.coordinates, 15),
     );
   }
 
   Future<void> _optimizeRoute() async {
-    if (widget.deliveries.isEmpty || _currentLocation == null) return;
+    if (_activeDeliveries.isEmpty || _currentLocation == null) return;
 
     final origin = '${_currentLocation!.latitude},${_currentLocation!.longitude}';
-    final destination = '${widget.deliveries.last.coordinates.latitude},${widget.deliveries.last.coordinates.longitude}';
-    final waypoints = widget.deliveries
-        .sublist(0, widget.deliveries.length - 1)
+    final destination = '${_activeDeliveries.last.coordinates.latitude},${_activeDeliveries.last.coordinates.longitude}';
+    final waypoints = _activeDeliveries
+        .sublist(0, _activeDeliveries.length - 1)
         .map((d) => '${d.coordinates.latitude},${d.coordinates.longitude}')
         .join('|');
 
@@ -264,6 +266,16 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
     // This can be used to fetch real-time updates from Firebase
   }
 
+  void _removeDestination(int indexToRemove) {
+    setState(() {
+      _activeDeliveries.removeAt(indexToRemove);
+      _waypointOrder = null;
+      _currentOptimizedIndex = 0;
+      _createMarkers(); // Update markers after removal
+    });
+    _optimizeRoute();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -282,8 +294,8 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
           GoogleMap(
             onMapCreated: _onMapCreated,
             initialCameraPosition: CameraPosition(
-              target: widget.deliveries.isNotEmpty 
-                  ? widget.deliveries[0].coordinates 
+              target: _activeDeliveries.isNotEmpty 
+                  ? _activeDeliveries[0].coordinates 
                   : LatLng(0.3136, 32.5811), // Default to Makerere coordinates
               zoom: 14,
             ),
@@ -293,7 +305,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
             myLocationButtonEnabled: true,
             compassEnabled: true,
           ),
-          if (widget.deliveries.isNotEmpty && _waypointOrder != null && _waypointOrder!.isNotEmpty)
+          if (_activeDeliveries.isNotEmpty && _waypointOrder != null && _waypointOrder!.isNotEmpty)
             Positioned(
               bottom: 16, // Move card lower to fill space
               left: 16,
@@ -308,7 +320,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
 
   Widget _buildOptimizedDeliveryCard() {
     if (_waypointOrder == null || _waypointOrder!.isEmpty) return SizedBox.shrink();
-    final delivery = widget.deliveries[_waypointOrder![_currentOptimizedIndex]];
+    final delivery = _activeDeliveries[_waypointOrder![_currentOptimizedIndex]];
     return Card(
       elevation: 4,
       child: Padding(
@@ -436,6 +448,11 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
                         : null,
                   ),
                   IconButton(
+                    icon: Icon(Icons.delete, color: Colors.red),
+                    tooltip: 'Remove this stop',
+                    onPressed: () => _removeDestination(_waypointOrder![_currentOptimizedIndex]),
+                  ),
+                  IconButton(
                     icon: Icon(Icons.arrow_forward),
                     onPressed: _currentOptimizedIndex < _waypointOrder!.length - 1
                         ? () => setState(() => _currentOptimizedIndex++)
@@ -473,7 +490,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
             IconButton(
               icon: Icon(Icons.arrow_forward),
               onPressed: _nextDelivery,
-              color: _currentDeliveryIndex < widget.deliveries.length - 1 
+              color: _currentDeliveryIndex < _activeDeliveries.length - 1 
                   ? AppColors.primary 
                   : Colors.grey,
             ),

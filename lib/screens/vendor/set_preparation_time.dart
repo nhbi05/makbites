@@ -159,12 +159,19 @@ class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
           lat = null;
           lng = null;
         }
+        // Before adding the delivery, fetch the customer name from users collection
+        final customerId = orderData['customerId'] ?? orderData['userId'];
+        String customerName = 'Customer';
+        if (customerId != null) {
+          final userDoc = await FirebaseFirestore.instance.collection('users').doc(customerId).get();
+          customerName = userDoc.data()?['name'] ?? 'Customer';
+        }
         await FirebaseFirestore.instance.collection('deliveries').add({
           'orderId': widget.orderId,
           'restaurantId': orderData['restaurant'] ?? widget.vendorRestaurantIdOrName,
           'customerId': orderData['userId'] ?? '',
-          'customerName': orderData['location'] ?? 'Customer', // Using location as customer name for now
-          'customerPhone': orderData['customerPhone'] ?? '', // Add customer phone if available
+          'customerName': customerName, // Use fetched name
+          'customerPhone': orderData['customerPhone'] ?? '',
           'deliveryAddress': customerAddress,
           'customerLocation': deliveryLocation,
           'locationLat': lat,

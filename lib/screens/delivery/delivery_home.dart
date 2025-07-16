@@ -350,20 +350,6 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
             )),
           ],
         ),
-        SizedBox(height: 12),
-        // Test button - remove in production
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _createTestDelivery,
-            icon: Icon(Icons.add),
-            label: Text("Create Test Delivery"),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -814,22 +800,58 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
   }
 
   Widget _buildRecentDeliveriesSection() {
+    final currentRiderId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentRiderId == null) return SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text("Recent Deliveries", style: AppTextStyles.subHeader),
         SizedBox(height: 16),
-        ...List.generate(_recentDeliveries.length, (index) {
-          final delivery = _recentDeliveries[index];
-          return Padding(
-            padding: EdgeInsets.only(bottom: 12),
-            child: _buildRecentDeliveryCard(
-              delivery["route"],
-              delivery["earning"],
-              delivery["status"],
-            ),
-          );
-        }),
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('deliveries')
+              .where('assignedRiderId', isEqualTo: 'rider_$currentRiderId')
+              .where('status', isEqualTo: 'completed')
+              .orderBy('completedAt', descending: true)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error loading recent deliveries: ${snapshot.error}'));
+            }
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Column(
+                    children: [
+                      Icon(Icons.inbox, size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text(
+                        "No recent deliveries yet",
+                        style: TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                ),
+              );
+            }
+            return Column(
+              children: snapshot.data!.docs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: _buildRecentDeliveryCard(
+                    data['deliveryAddress'] ?? data['customerName'] ?? 'Unknown',
+                    (data['deliveryFee'] ?? 0).toInt(),
+                    'Delivered',
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
       ],
     );
   }
