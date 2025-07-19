@@ -257,6 +257,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception('User not logged in');
     try {
+      // Determine restaurant name from the first item (assuming all items are from the same restaurant)
+      String? restaurantName;
+      if (items.isNotEmpty && items[0].containsKey('restaurant')) {
+        restaurantName = items[0]['restaurant'];
+      }
       await FirebaseFirestore.instance.collection('orders').add({
         'userId': user.uid,
         'items': items,
@@ -265,9 +270,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         'deliveryFee': deliveryFee,
         'clientTimestamp': DateTime.now(),
         'serverTimestamp': FieldValue.serverTimestamp(),
-        'status': 'sent', // Immediately sent to restaurant
+        'status': 'pending', // Ready for vendor assignment
         'sentAt': DateTime.now(), // Add sent timestamp
         'orderSource': 'browse',
+        if (restaurantName != null) 'restaurant': restaurantName, // <-- Add top-level restaurant field
         if (_pickedLocationData != null) ...{
           'customerLocation': {
             'latitude': _pickedLocationData!['lat'],
