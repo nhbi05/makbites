@@ -1,12 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:image_cropper/image_cropper.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'edit_profile_page.dart';  // Make sure this path is correct
+import 'edit_profile_page.dart'; // Ensure this path is correct
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -55,49 +54,55 @@ class _ProfilePageState extends State<ProfilePage> {
     });
   }
 
-  Future<void> _pickCropAndUpload(ImageSource source) async {
+  Future<void> _pickAndUpload(ImageSource source) async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: source, imageQuality: 85);
     if (picked == null) return;
 
-    final cropped = await ImageCropper().cropImage(
-      sourcePath: picked.path,
-      aspectRatio: CropAspectRatio(ratioX: 1, ratioY: 1),
-      compressFormat: ImageCompressFormat.jpg,
-      uiSettings: [
-        AndroidUiSettings(
-          toolbarTitle: 'Crop Image',
-          lockAspectRatio: true,
-        ),
-        IOSUiSettings(
-          title: 'Crop Image',
-          aspectRatioLockEnabled: true,
-        ),
-      ],
-    );
-
-    if (cropped == null) return;
-
     setState(() => isUploading = true);
 
-    final file = File(cropped.path);
-    final userId = FirebaseAuth.instance.currentUser!.uid;
-    final ref = FirebaseStorage.instance.ref('profile_images/$userId.jpg');
-    await ref.putFile(file);
-    final url = await ref.getDownloadURL();
+    try {
+      final file = File(picked.path);
 
-    await FirebaseFirestore.instance
-        .collection('restaurants')
-        .doc(userId)
-        .update({'profileImage': url});
+      // Check if file exists before uploading
+      if (!await file.exists()) {
+        throw Exception("Selected file does not exist at path: ${picked.path}");
+      }
 
-    setState(() {
-      profileImageUrl = url;
-      isUploading = false;
-    });
+      final userId = FirebaseAuth.instance.currentUser!.uid;
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Profile image updated!')));
+      // UPDATED path to match Firebase Storage rules
+      final ref = FirebaseStorage.instance.ref('profile_images/$userId/profile.jpg');
+
+      // Upload file to Firebase Storage
+      await ref.putFile(file);
+
+      // Get download URL
+      final url = await ref.getDownloadURL();
+
+      // Update Firestore document with the image URL
+      await FirebaseFirestore.instance
+          .collection('restaurants')
+          .doc(userId)
+          .update({'profileImage': url});
+
+      setState(() {
+        profileImageUrl = url;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile image updated!')),
+      );
+    } catch (e) {
+      // Handle errors gracefully
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update profile image: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => isUploading = false);
+      }
+    }
   }
 
   void _showImageSourceSheet() {
@@ -111,7 +116,7 @@ class _ProfilePageState extends State<ProfilePage> {
               title: const Text('Choose from gallery'),
               onTap: () {
                 Navigator.pop(context);
-                _pickCropAndUpload(ImageSource.gallery);
+                _pickAndUpload(ImageSource.gallery);
               },
             ),
             ListTile(
@@ -119,7 +124,7 @@ class _ProfilePageState extends State<ProfilePage> {
               title: const Text('Take a photo'),
               onTap: () {
                 Navigator.pop(context);
-                _pickCropAndUpload(ImageSource.camera);
+                _pickAndUpload(ImageSource.camera);
               },
             ),
           ],
@@ -145,7 +150,6 @@ class _ProfilePageState extends State<ProfilePage> {
       'email': email,
     });
 
-    // Refresh local state
     setState(() {
       restaurantName = name;
       this.description = description;
@@ -170,7 +174,6 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      //appBar: AppBar(title: const Text('Restaurant Profile')),
       body: isUploading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -201,15 +204,12 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
             const SizedBox(height: 20),
-
             _infoTile("Restaurant Name", restaurantName),
             _infoTile("Cuisine Type", cuisineType),
             _infoTile("Description", description),
             _infoTile("Phone Number", phoneNumber),
             _infoTile("Email", email),
             _infoTile("Location", location),
-
-            // Status toggle widget
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
@@ -240,9 +240,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ],
               ),
             ),
-
             const SizedBox(height: 20),
-
             Center(
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -263,7 +261,6 @@ class _ProfilePageState extends State<ProfilePage> {
                         phone: phoneNumber,
                         email: email,
                         onSave: ({
-
                           required String name,
                           required String description,
                           required String cuisine,

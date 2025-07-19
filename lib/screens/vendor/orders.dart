@@ -25,9 +25,7 @@ class _OrdersPageState extends State<OrdersPage> {
     final result = await showDialog(
       context: context,
       builder: (BuildContext context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: SetPreparationTimePage(
           orderId: orderId,
           vendorRestaurantIdOrName: widget.vendorRestaurantId,
@@ -38,23 +36,6 @@ class _OrdersPageState extends State<OrdersPage> {
     if (result == true) {
       setState(() {});
     }
-  }
-
-  void _showOrderDetailDialog(String orderId, String displayOrderId, Map<String, dynamic> orderData, String customerName) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: OrderDetailCard(
-          orderId: orderId,
-          displayOrderId: displayOrderId,
-          orderData: orderData,
-          customerName: customerName,
-        ),
-      ),
-    );
   }
 
   Future<void> _loadUsers() async {
@@ -72,19 +53,26 @@ class _OrdersPageState extends State<OrdersPage> {
   }
 
   void updateOrderStatus(String orderId, String currentStatus) async {
-    String newStatus;
-    if (currentStatus == "Start Preparing") {
-      newStatus = "Completed";
-    } else {
-      return;
-    }
+    if (currentStatus.trim().toLowerCase() == "start preparing") {
+      await FirebaseFirestore.instance
+          .collection('orders')
+          .doc(orderId)
+          .update({'status': 'Completed'});
 
-    await FirebaseFirestore.instance.collection('orders').doc(orderId).update({'status': newStatus});
-    setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Order marked as "Completed"!')),
+      );
+
+      setState(() {});
+    }
   }
 
   void cancelOrder(String orderId) async {
-    await FirebaseFirestore.instance.collection('orders').doc(orderId).update({'status': 'Cancelled'});
+    await FirebaseFirestore.instance
+        .collection('orders')
+        .doc(orderId)
+        .update({'status': 'Cancelled'});
+
     setState(() {});
   }
 
@@ -109,7 +97,7 @@ class _OrdersPageState extends State<OrdersPage> {
   }
 
   Future<void> _createTestOrder() async {
-    String newId = 'ORDER-${DateTime.now().millisecondsSinceEpoch.toString()}';
+    String newId = 'ORDER-${DateTime.now().millisecondsSinceEpoch}';
 
     await FirebaseFirestore.instance.collection('orders').doc(newId).set({
       'restaurant': widget.vendorRestaurantId,
@@ -126,7 +114,7 @@ class _OrdersPageState extends State<OrdersPage> {
       'notes': 'Please add ketchup and cutlery.',
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Test order $newId created')));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Test order created')));
   }
 
   @override
@@ -153,16 +141,21 @@ class _OrdersPageState extends State<OrdersPage> {
               return Center(child: Text('No orders found for this restaurant.'));
             }
 
-            final orders = snapshot.data!.docs;
+            final allDocs = snapshot.data!.docs;
 
-            int totalOrders = orders.length;
-            int completedOrders = orders
+            final validOrders = allDocs.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              return data.containsKey('status') && data['status'] != null && data['status'].toString().trim().isNotEmpty;
+            }).toList();
+
+            int totalOrders = validOrders.length;
+            int completedOrders = validOrders
                 .where((doc) => (doc.data() as Map<String, dynamic>)['status'] == "Completed")
                 .length;
-            int cancelledOrders = orders
+            int cancelledOrders = validOrders
                 .where((doc) => (doc.data() as Map<String, dynamic>)['status'] == "Cancelled")
                 .length;
-            int totalRevenue = orders.fold(0, (sum, doc) {
+            int totalRevenue = validOrders.fold(0, (sum, doc) {
               final data = doc.data() as Map<String, dynamic>;
               final price = data['foodPrice'] ?? 0;
               return sum + (price is num ? price.toInt() : 0);
@@ -185,22 +178,21 @@ class _OrdersPageState extends State<OrdersPage> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     _infoCard("Cancelled", cancelledOrders.toString()),
-                    _infoCard("Total Revenue", "shs.$totalRevenue"),
+                    _infoCard("Total Revenue", "shs.${NumberFormat('#,###').format(totalRevenue)}"),
                   ],
                 ),
                 SizedBox(height: 16),
                 Text("Orders", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
                 Expanded(
                   child: ListView.builder(
-                    itemCount: orders.length,
+                    itemCount: validOrders.length,
                     itemBuilder: (context, index) {
-                      final orderDoc = orders[index];
+                      final orderDoc = validOrders[index];
                       final orderData = orderDoc.data() as Map<String, dynamic>;
 
+                      final orderId = orderDoc.id;
                       final userId = orderData['userId'] ?? 'Unknown';
                       final customerName = _userIdToName[userId] ?? userId;
-
-                      final orderId = orderDoc.id;
                       final displayOrderId = '#ORD${(index + 1).toString().padLeft(3, '0')}';
                       final timestamp = orderData['clientTimestamp'];
                       final orderTime = (timestamp != null && timestamp is Timestamp)
@@ -208,7 +200,8 @@ class _OrdersPageState extends State<OrdersPage> {
                           : 'Unknown time';
 
                       final foodItem = orderData['food'] ?? 'No items';
-                      final status = orderData['status'] ?? 'Pending';
+                      final status = orderData['status'].toString().trim();
+                      final normalizedStatus = status.toLowerCase();
                       final price = orderData['foodPrice'] ?? 0;
                       final mealType = orderData['mealType'] ?? '';
                       final paymentMethod = orderData['paymentMethod'] ?? '';
@@ -217,7 +210,11 @@ class _OrdersPageState extends State<OrdersPage> {
                         margin: EdgeInsets.symmetric(vertical: 8),
                         child: InkWell(
                           onTap: () {
-                            _showOrderDetailDialog(orderId, displayOrderId, orderData, customerName);
+                            if (normalizedStatus == "pending") {
+                              _showSetPreparationTimeDialog(orderId);
+                            } else if (normalizedStatus == "start preparing") {
+                              updateOrderStatus(orderId, status);
+                            }
                           },
                           child: Padding(
                             padding: const EdgeInsets.all(12.0),
@@ -228,10 +225,14 @@ class _OrdersPageState extends State<OrdersPage> {
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(customerName, style: TextStyle(fontWeight: FontWeight.bold)),
-                                    IconButton(
-                                      icon: Icon(Icons.cancel, color: Colors.red),
-                                      onPressed: () => _showCancelDialog(context, orderId),
-                                    ),
+                                    if (normalizedStatus == "pending")
+                                      GestureDetector(
+                                        onTap: () => _showCancelDialog(context, orderId),
+                                        child: Tooltip(
+                                          message: "Cancel Order",
+                                          child: Icon(Icons.cancel, color: Colors.red),
+                                        ),
+                                      ),
                                   ],
                                 ),
                                 Text("$displayOrderId • $orderTime"),
@@ -243,42 +244,37 @@ class _OrdersPageState extends State<OrdersPage> {
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    GestureDetector(
-                                      onTap: () {
-                                        if (status == "Pending") {
-                                          _showSetPreparationTimeDialog(orderId);
-                                        } else if (status == "Start Preparing") {
-                                          updateOrderStatus(orderId, status);
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(content: Text('Order marked as "Completed"!')),
-                                          );
-                                        }
-                                      },
-                                      child: Container(
-                                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: status == "Completed"
-                                              ? Colors.green
-                                              : status == "Start Preparing"
-                                              ? Colors.orange
-                                              : Colors.blueAccent,
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              status == "Completed"
-                                                  ? Icons.check
-                                                  : status == "Start Preparing"
-                                                  ? Icons.access_time
-                                                  : Icons.fiber_new,
-                                              color: Colors.white,
-                                              size: 16,
-                                            ),
-                                            SizedBox(width: 4),
-                                            Text(status, style: TextStyle(color: Colors.white)),
-                                          ],
-                                        ),
+                                    Container(
+                                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: normalizedStatus == "completed"
+                                            ? Colors.green
+                                            : normalizedStatus == "start preparing"
+                                            ? Colors.orange
+                                            : normalizedStatus == "cancelled"
+                                            ? Colors.grey
+                                            : Colors.blueAccent,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            normalizedStatus == "completed"
+                                                ? Icons.check
+                                                : normalizedStatus == "start preparing"
+                                                ? Icons.access_time
+                                                : normalizedStatus == "cancelled"
+                                                ? Icons.cancel
+                                                : Icons.fiber_new,
+                                            color: Colors.white,
+                                            size: 16,
+                                          ),
+                                          SizedBox(width: 4),
+                                          Text(
+                                            status[0].toUpperCase() + status.substring(1),
+                                            style: TextStyle(color: Colors.white),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                     Text("Shs. $price", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -315,66 +311,6 @@ class _OrdersPageState extends State<OrdersPage> {
           SizedBox(height: 4),
           Text(value),
         ],
-      ),
-    );
-  }
-}
-
-class OrderDetailCard extends StatelessWidget {
-  final String orderId;
-  final String displayOrderId;
-  final Map<String, dynamic> orderData;
-  final String customerName;
-
-  const OrderDetailCard({
-    required this.orderId,
-    required this.displayOrderId,
-    required this.orderData,
-    required this.customerName,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final timestamp = orderData['clientTimestamp'];
-    final orderTime = (timestamp != null && timestamp is Timestamp)
-        ? DateFormat('yyyy-MM-dd – kk:mm').format(timestamp.toDate())
-        : 'Unknown time';
-
-    return Card(
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text("Order ID: $displayOrderId",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              SizedBox(height: 12),
-              Text("Customer: $customerName"),
-              Text("Food: ${orderData['food'] ?? 'N/A'}"),
-              Text("Meal Type: ${orderData['mealType'] ?? 'N/A'}"),
-              Text("Price: Shs. ${orderData['foodPrice'] ?? 'N/A'}"),
-              Text("Payment Method: ${orderData['paymentMethod'] ?? 'N/A'}"),
-              Text("Status: ${orderData['status'] ?? 'N/A'}"),
-              Text("Time: $orderTime"),
-              SizedBox(height: 20),
-              if (orderData.containsKey('notes') &&
-                  (orderData['notes'] as String).trim().isNotEmpty)
-                Text("Customer Notes:\n${orderData['notes']}",
-                    style: TextStyle(fontStyle: FontStyle.italic)),
-              SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text("Close"),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

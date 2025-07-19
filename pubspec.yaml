@@ -31,7 +31,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   firebase_storage: ^12.4.9
   image_picker: ^1.1.2
-  image_cropper: ^5.0.1
+  #image_cropper: ^5.0.1
   cached_network_image: ^3.4.1
   
   # Google Maps integration
