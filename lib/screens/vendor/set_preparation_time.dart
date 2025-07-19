@@ -82,6 +82,7 @@ class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
         return {
           'id': doc.id,
           'name': data['name'] ?? 'Unnamed',
+          'isOnline': data['isOnline'] ?? false,
         };
       }).toList();
 
@@ -248,9 +249,27 @@ class _SetPreparationTimePageState extends State<SetPreparationTimePage> {
         contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
       items: _riders.map((rider) {
+        final isOnline = rider['isOnline'] == true;
         return DropdownMenuItem<String>(
           value: rider['id'],
-          child: Text(rider['name']),
+          child: Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                rider['name'],
+                overflow: TextOverflow.ellipsis,
+              ),
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: isOnline ? Colors.green : Colors.grey,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          ),
         );
       }).toList(),
       onChanged: (value) => setState(() => selectedRiderId = value),

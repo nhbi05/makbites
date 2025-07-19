@@ -27,44 +27,32 @@ class _VendorHomePageState extends State<VendorHomePage> {
       statusBarIconBrightness: Brightness.dark,
       statusBarBrightness: Brightness.light,
     ));
-    _initializeRestaurant(); // ✅ Auto-create if missing
+    _initializeRestaurant();
     _fetchVendorData();
   }
 
-  /// ✅ Auto-create restaurant document if missing (with correct name from users collection)
   Future<void> _initializeRestaurant() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final restaurantDoc = FirebaseFirestore.instance
-          .collection('restaurants')
-          .doc(user.uid);
+      final restaurantDoc = FirebaseFirestore.instance.collection('restaurants').doc(user.uid);
       final doc = await restaurantDoc.get();
 
       if (!doc.exists) {
-        // ✅ Fetch name from 'users' collection
-        final userDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get();
+        final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
         final userName = userDoc.data()?['name'] ?? 'Unnamed Restaurant';
 
         await restaurantDoc.set({
-          'name': userName, // ✅ Correct name
+          'name': userName,
           'profileImage': '',
           'location': '',
           'isOpen': true,
         });
-        print('Restaurant created automatically with correct name.');
       } else {
-        // ✅ Fix missing fields in existing document
         final data = doc.data()!;
         final Map<String, dynamic> updates = {};
 
         if (!data.containsKey('name')) {
-          final userDoc = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .get();
+          final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
           updates['name'] = userDoc.data()?['name'] ?? 'Unnamed Restaurant';
         }
         if (!data.containsKey('profileImage')) {
@@ -79,20 +67,15 @@ class _VendorHomePageState extends State<VendorHomePage> {
 
         if (updates.isNotEmpty) {
           await restaurantDoc.update(updates);
-          print('Existing restaurant updated with missing fields.');
         }
       }
     }
   }
 
-  /// ✅ Fetch restaurant data
   Future<void> _fetchVendorData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final doc = await FirebaseFirestore.instance
-          .collection('restaurants')
-          .doc(user.uid)
-          .get();
+      final doc = await FirebaseFirestore.instance.collection('restaurants').doc(user.uid).get();
       setState(() {
         restaurantName = doc.data()?['name'] ?? 'Restaurant';
         profileImageUrl = doc.data()?['profileImage'];
@@ -101,14 +84,10 @@ class _VendorHomePageState extends State<VendorHomePage> {
     }
   }
 
-  /// ✅ Update restaurant open/closed status
   Future<void> _updateRestaurantStatus(bool status) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      await FirebaseFirestore.instance
-          .collection('restaurants')
-          .doc(user.uid)
-          .update({'isOpen': status});
+      await FirebaseFirestore.instance.collection('restaurants').doc(user.uid).update({'isOpen': status});
     }
   }
 
@@ -154,8 +133,7 @@ class _VendorHomePageState extends State<VendorHomePage> {
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.receipt_long), label: 'Orders'),
+          BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'Orders'),
           BottomNavigationBarItem(icon: Icon(Icons.menu_book), label: 'Menu'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
@@ -172,11 +150,7 @@ class _VendorHomePageState extends State<VendorHomePage> {
           _metricsGrid(),
           _restaurantStatusCard(),
           _sectionTitle("Recent Orders"),
-          const Padding(
-            padding: EdgeInsets.all(12.0),
-            child: Text(
-                "No recent orders yet.", style: TextStyle(color: Colors.grey)),
-          ),
+          _recentOrdersList(),
         ],
       ),
     );
@@ -184,16 +158,13 @@ class _VendorHomePageState extends State<VendorHomePage> {
 
   Widget _headerSection() {
     String greeting;
-    final hour = DateTime
-        .now()
-        .hour;
+    final hour = DateTime.now().hour;
     if (hour < 12) {
       greeting = "Good Morning, Chef!\nReady to serve delicious meals today?";
     } else if (hour >= 12 && hour < 17) {
       greeting = "Good Afternoon, Chef!\nReady for the lunch rush?";
     } else {
-      greeting =
-      "Good Evening, Chef!\nReady to serve the last meals of the day?";
+      greeting = "Good Evening, Chef!\nReady to serve the last meals of the day?";
     }
 
     return Padding(
@@ -214,6 +185,8 @@ class _VendorHomePageState extends State<VendorHomePage> {
   }
 
   Widget _metricsGrid() {
+    final user = FirebaseAuth.instance.currentUser;
+
     return Padding(
       padding: const EdgeInsets.all(12),
       child: GridView.count(
@@ -224,14 +197,112 @@ class _VendorHomePageState extends State<VendorHomePage> {
         childAspectRatio: 2.5,
         physics: const NeverScrollableScrollPhysics(),
         children: [
-          _metricCard(
-              Icons.shopping_cart, "23", "Today's Orders", AppColors.success),
-          _metricCard(Icons.attach_money, "UGX 200K", "Revenue", Colors.amber),
-          _metricCard(
-              Icons.timelapse, "5", "Pending Orders", AppColors.primary),
+          // Today's Orders
+          StreamBuilder<QuerySnapshot>(
+            stream: (() {
+              final now = DateTime.now();
+              final startOfDay = DateTime(now.year, now.month, now.day);
+              final endOfDay = startOfDay.add(Duration(days: 1));
+
+              return FirebaseFirestore.instance
+                  .collection('orders')
+                  .where('assigned_vendor', isEqualTo: user?.uid)
+                  .where('clientTimestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+                  .where('clientTimestamp', isLessThan: Timestamp.fromDate(endOfDay))
+                  .snapshots();
+            })(),
+            builder: (context, snapshot) {
+              if (snapshot.hasData) {
+                final count = snapshot.data?.docs.length ?? 0;
+                return _metricCard(Icons.shopping_cart, "$count", "Today's Orders", AppColors.success);
+              } else {
+                return _metricCard(Icons.shopping_cart, "0", "Today's Orders", AppColors.success);
+              }
+            },
+          ),
+
+          // Revenue
+          StreamBuilder<QuerySnapshot>(
+            stream: (() {
+              final now = DateTime.now();
+              final startOfDay = DateTime(now.year, now.month, now.day);
+              final endOfDay = startOfDay.add(Duration(days: 1));
+
+              return FirebaseFirestore.instance
+                  .collection('orders')
+                  .where('assigned_vendor', isEqualTo: user?.uid)
+                  .where('clientTimestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+                  .where('clientTimestamp', isLessThan: Timestamp.fromDate(endOfDay))
+                  .snapshots();
+            })(),
+            builder: (context, snapshot) {
+              if (snapshot.hasData) {
+                double totalRevenue = 0;
+                for (var doc in snapshot.data!.docs) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final price = data['foodPrice'] ?? 0;
+                  if (price is int || price is double) {
+                    totalRevenue += price.toDouble();
+                  }
+                }
+                return _metricCard(Icons.attach_money, "UGX ${totalRevenue.toStringAsFixed(0)}", "Revenue", Colors.amber);
+              } else {
+                return _metricCard(Icons.attach_money, "UGX 0", "Revenue", Colors.amber);
+              }
+            },
+          ),
+
+          _metricCard(Icons.timelapse, "5", "Pending Orders", AppColors.primary),
           _metricCard(Icons.star, "4.8", "Rating", Colors.amber),
         ],
       ),
+    );
+  }
+
+  Widget _recentOrdersList() {
+    final user = FirebaseAuth.instance.currentUser;
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final endOfDay = startOfDay.add(Duration(days: 1));
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('orders')
+          .where('assigned_vendor', isEqualTo: user?.uid)
+          .where('clientTimestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .where('clientTimestamp', isLessThan: Timestamp.fromDate(endOfDay))
+          .orderBy('clientTimestamp', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.all(12.0),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(12.0),
+            child: Text("No recent orders yet.", style: TextStyle(color: Colors.grey)),
+          );
+        }
+
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: snapshot.data!.docs.length,
+          itemBuilder: (context, index) {
+            final order = snapshot.data!.docs[index].data() as Map<String, dynamic>;
+            return ListTile(
+              leading: const Icon(Icons.receipt_long, color: AppColors.primary),
+              title: Text(order['customerName'] ?? 'Customer'),
+              subtitle: Text("UGX ${order['totalPrice'] ?? 0}"),
+              trailing: Text(order['status'] ?? 'Pending'),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -258,7 +329,6 @@ class _VendorHomePageState extends State<VendorHomePage> {
     );
   }
 
-  /// ✅ Restaurant Status Toggle Card
   Widget _restaurantStatusCard() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
