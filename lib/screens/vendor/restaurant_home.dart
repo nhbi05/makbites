@@ -17,7 +17,9 @@ class _VendorHomePageState extends State<VendorHomePage> {
   int _currentIndex = 0;
   String? restaurantName;
   String? profileImageUrl;
+  String? vendorId;
   bool isRestaurantOpen = true;
+  bool _isDataLoaded = false;
 
   @override
   void initState() {
@@ -27,13 +29,21 @@ class _VendorHomePageState extends State<VendorHomePage> {
       statusBarIconBrightness: Brightness.dark,
       statusBarBrightness: Brightness.light,
     ));
-    _initializeRestaurant();
-    _fetchVendorData();
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    await _initializeRestaurant();
+    await _fetchVendorData();
+    setState(() {
+      _isDataLoaded = true;
+    });
   }
 
   Future<void> _initializeRestaurant() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
+      vendorId = user.uid;
       final restaurantDoc = FirebaseFirestore.instance.collection('restaurants').doc(user.uid);
       final doc = await restaurantDoc.get();
 
@@ -46,6 +56,7 @@ class _VendorHomePageState extends State<VendorHomePage> {
           'profileImage': '',
           'location': '',
           'isOpen': true,
+          'vendorId': user.uid,
         });
       } else {
         final data = doc.data()!;
@@ -64,6 +75,9 @@ class _VendorHomePageState extends State<VendorHomePage> {
         if (!data.containsKey('isOpen')) {
           updates['isOpen'] = true;
         }
+        if (!data.containsKey('vendorId')) {
+          updates['vendorId'] = user.uid;
+        }
 
         if (updates.isNotEmpty) {
           await restaurantDoc.update(updates);
@@ -76,11 +90,14 @@ class _VendorHomePageState extends State<VendorHomePage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final doc = await FirebaseFirestore.instance.collection('restaurants').doc(user.uid).get();
-      setState(() {
-        restaurantName = doc.data()?['name'] ?? 'Restaurant';
-        profileImageUrl = doc.data()?['profileImage'];
-        isRestaurantOpen = doc.data()?['isOpen'] ?? true;
-      });
+      if (mounted) {
+        setState(() {
+          restaurantName = doc.data()?['name'] ?? 'Restaurant';
+          profileImageUrl = doc.data()?['profileImage'];
+          isRestaurantOpen = doc.data()?['isOpen'] ?? true;
+          vendorId = user.uid;
+        });
+      }
     }
   }
 
@@ -107,6 +124,9 @@ class _VendorHomePageState extends State<VendorHomePage> {
             icon: profileImageUrl != null && profileImageUrl!.isNotEmpty
                 ? CircleAvatar(
               backgroundImage: NetworkImage(profileImageUrl!),
+              onBackgroundImageError: (exception, stackTrace) {
+                // Handle image load error silently
+              },
             )
                 : const Icon(Icons.person, color: Colors.white),
             onPressed: () {},
@@ -142,6 +162,10 @@ class _VendorHomePageState extends State<VendorHomePage> {
   }
 
   Widget _buildDashboard() {
+    if (!_isDataLoaded || vendorId == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,8 +209,6 @@ class _VendorHomePageState extends State<VendorHomePage> {
   }
 
   Widget _metricsGrid() {
-    final user = FirebaseAuth.instance.currentUser;
-
     return Padding(
       padding: const EdgeInsets.all(12),
       child: GridView.count(
@@ -197,87 +219,216 @@ class _VendorHomePageState extends State<VendorHomePage> {
         childAspectRatio: 2.5,
         physics: const NeverScrollableScrollPhysics(),
         children: [
-          // Today's Orders
+          // Today's Orders - Fixed to filter in-memory
           StreamBuilder<QuerySnapshot>(
-            stream: (() {
-              final now = DateTime.now();
-              final startOfDay = DateTime(now.year, now.month, now.day);
-              final endOfDay = startOfDay.add(Duration(days: 1));
-
-              return FirebaseFirestore.instance
-                  .collection('orders')
-                  .where('assigned_vendor', isEqualTo: user?.uid)
-                  .where('clientTimestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
-                  .where('clientTimestamp', isLessThan: Timestamp.fromDate(endOfDay))
-                  .snapshots();
-            })(),
+            stream: _getTodaysOrdersStream(),
             builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                print("Today's Orders Error: ${snapshot.error}");
+                return _metricCard(Icons.shopping_cart, "Error", "Today's Orders", Colors.red);
+              }
+
               if (snapshot.hasData) {
-                final count = snapshot.data?.docs.length ?? 0;
+                // Filter orders to only include today's orders
+                final now = DateTime.now();
+                final startOfDay = DateTime(now.year, now.month, now.day);
+
+                final todayOrders = snapshot.data!.docs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final timestamp = data['clientTimestamp'] as Timestamp?;
+
+                  if (timestamp != null) {
+                    return timestamp.toDate().isAfter(startOfDay);
+                  }
+                  return false;
+                }).toList();
+
+                final count = todayOrders.length;
                 return _metricCard(Icons.shopping_cart, "$count", "Today's Orders", AppColors.success);
               } else {
-                return _metricCard(Icons.shopping_cart, "0", "Today's Orders", AppColors.success);
+                return _metricCard(Icons.shopping_cart, "...", "Today's Orders", AppColors.success);
               }
             },
           ),
 
-          // Revenue
+          // Revenue - Calculated from completed orders
           StreamBuilder<QuerySnapshot>(
-            stream: (() {
-              final now = DateTime.now();
-              final startOfDay = DateTime(now.year, now.month, now.day);
-              final endOfDay = startOfDay.add(Duration(days: 1));
-
-              return FirebaseFirestore.instance
-                  .collection('orders')
-                  .where('assigned_vendor', isEqualTo: user?.uid)
-                  .where('clientTimestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
-                  .where('clientTimestamp', isLessThan: Timestamp.fromDate(endOfDay))
-                  .snapshots();
-            })(),
+            stream: _getVendorOrdersStream(),
             builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                print("Revenue Error: ${snapshot.error}");
+                return _metricCard(Icons.attach_money, "Error", "Revenue", Colors.red);
+              }
+
               if (snapshot.hasData) {
                 double totalRevenue = 0;
+                final today = DateTime.now();
+                final startOfDay = DateTime(today.year, today.month, today.day);
+
                 for (var doc in snapshot.data!.docs) {
                   final data = doc.data() as Map<String, dynamic>;
-                  final price = data['foodPrice'] ?? 0;
-                  if (price is int || price is double) {
-                    totalRevenue += price.toDouble();
+                  final status = data['status']?.toString().toLowerCase() ?? '';
+                  final timestamp = data['clientTimestamp'] as Timestamp?;
+
+                  // Check if order is from today and completed
+                  if (timestamp != null &&
+                      timestamp.toDate().isAfter(startOfDay) &&
+                      (status == 'completed' || status == 'delivered')) {
+                    final price = data['foodPrice'];
+                    if (price != null) {
+                      if (price is int) {
+                        totalRevenue += price.toDouble();
+                      } else if (price is double) {
+                        totalRevenue += price;
+                      } else if (price is String) {
+                        totalRevenue += double.tryParse(price) ?? 0;
+                      }
+                    }
                   }
                 }
+
                 return _metricCard(Icons.attach_money, "UGX ${totalRevenue.toStringAsFixed(0)}", "Revenue", Colors.amber);
               } else {
-                return _metricCard(Icons.attach_money, "UGX 0", "Revenue", Colors.amber);
+                return _metricCard(Icons.attach_money, "...", "Revenue", Colors.amber);
               }
             },
           ),
 
-          _metricCard(Icons.timelapse, "5", "Pending Orders", AppColors.primary),
+          // Delivered Orders Today - Changed from Pending Orders
+          StreamBuilder<QuerySnapshot>(
+            stream: _getDeliveredOrdersStream(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                print("Delivered Orders Error: ${snapshot.error}");
+                return _metricCard(Icons.check_circle, "Error", "Delivered Today", Colors.red);
+              }
+
+              if (snapshot.hasData) {
+                // Filter to only include today's delivered orders
+                final now = DateTime.now();
+                final startOfDay = DateTime(now.year, now.month, now.day);
+
+                final todayDeliveredOrders = snapshot.data!.docs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final timestamp = data['clientTimestamp'] as Timestamp?;
+                  final status = data['status']?.toString().toLowerCase() ?? '';
+
+                  if (timestamp != null && status == 'delivered') {
+                    return timestamp.toDate().isAfter(startOfDay);
+                  }
+                  return false;
+                }).toList();
+
+                final count = todayDeliveredOrders.length;
+                return _metricCard(Icons.check_circle, "$count", "Delivered Today", AppColors.success);
+              } else {
+                return _metricCard(Icons.check_circle, "...", "Delivered Today", AppColors.success);
+              }
+            },
+          ),
+
           _metricCard(Icons.star, "4.8", "Rating", Colors.amber),
         ],
       ),
     );
   }
 
+  // Fixed stream - no longer requires composite index
+  Stream<QuerySnapshot> _getTodaysOrdersStream() {
+    if (vendorId == null) return const Stream.empty();
+
+    // Simple query without timestamp filter to avoid index requirement
+    if (restaurantName != null && restaurantName!.isNotEmpty) {
+      return FirebaseFirestore.instance
+          .collection('orders')
+          .where('restaurant', isEqualTo: restaurantName)
+          .snapshots();
+    }
+
+    // Fallback to vendor ID if available
+    return FirebaseFirestore.instance
+        .collection('orders')
+        .where('vendorId', isEqualTo: vendorId)
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot> _getVendorOrdersStream() {
+    if (vendorId == null) return const Stream.empty();
+
+    // Get all orders for this vendor (we'll filter by date in the widget)
+    if (restaurantName != null && restaurantName!.isNotEmpty) {
+      return FirebaseFirestore.instance
+          .collection('orders')
+          .where('restaurant', isEqualTo: restaurantName)
+          .snapshots();
+    }
+
+    return FirebaseFirestore.instance
+        .collection('orders')
+        .where('vendorId', isEqualTo: vendorId)
+        .snapshots();
+  }
+
+  // New stream for delivered orders - replaces the pending orders stream
+  Stream<QuerySnapshot> _getDeliveredOrdersStream() {
+    if (vendorId == null) return const Stream.empty();
+
+    if (restaurantName != null && restaurantName!.isNotEmpty) {
+      return FirebaseFirestore.instance
+          .collection('orders')
+          .where('restaurant', isEqualTo: restaurantName)
+          .where('status', isEqualTo: 'delivered')
+          .snapshots();
+    }
+
+    return FirebaseFirestore.instance
+        .collection('orders')
+        .where('vendorId', isEqualTo: vendorId)
+        .where('status', isEqualTo: 'delivered')
+        .snapshots();
+  }
+
   Widget _recentOrdersList() {
-    final user = FirebaseAuth.instance.currentUser;
-    final now = DateTime.now();
-    final startOfDay = DateTime(now.year, now.month, now.day);
-    final endOfDay = startOfDay.add(Duration(days: 1));
+    if (vendorId == null) {
+      return const Padding(
+        padding: EdgeInsets.all(12.0),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('orders')
-          .where('assigned_vendor', isEqualTo: user?.uid)
-          .where('clientTimestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
-          .where('clientTimestamp', isLessThan: Timestamp.fromDate(endOfDay))
+          .where('restaurant', isEqualTo: restaurantName)
           .orderBy('clientTimestamp', descending: true)
+          .limit(10)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
             padding: EdgeInsets.all(12.0),
             child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError) {
+          // Fallback query without orderBy if index is missing
+          return StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('orders')
+                .where('restaurant', isEqualTo: restaurantName)
+                .limit(10)
+                .snapshots(),
+            builder: (context, fallbackSnapshot) {
+              if (!fallbackSnapshot.hasData || fallbackSnapshot.data!.docs.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.all(12.0),
+                  child: Text("No recent orders yet.", style: TextStyle(color: Colors.grey)),
+                );
+              }
+
+              return _buildOrdersList(fallbackSnapshot.data!.docs);
+            },
           );
         }
 
@@ -288,22 +439,66 @@ class _VendorHomePageState extends State<VendorHomePage> {
           );
         }
 
-        return ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: snapshot.data!.docs.length,
-          itemBuilder: (context, index) {
-            final order = snapshot.data!.docs[index].data() as Map<String, dynamic>;
-            return ListTile(
-              leading: const Icon(Icons.receipt_long, color: AppColors.primary),
-              title: Text(order['customerName'] ?? 'Customer'),
-              subtitle: Text("UGX ${order['totalPrice'] ?? 0}"),
-              trailing: Text(order['status'] ?? 'Pending'),
-            );
-          },
+        return _buildOrdersList(snapshot.data!.docs);
+      },
+    );
+  }
+
+  Widget _buildOrdersList(List<QueryDocumentSnapshot> docs) {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: docs.length,
+      itemBuilder: (context, index) {
+        final order = docs[index].data() as Map<String, dynamic>;
+        final foodPrice = order['foodPrice'];
+        String priceDisplay = "0";
+
+        if (foodPrice != null) {
+          if (foodPrice is int || foodPrice is double) {
+            priceDisplay = foodPrice.toString();
+          } else if (foodPrice is String) {
+            priceDisplay = foodPrice;
+          }
+        }
+
+        return ListTile(
+          leading: const Icon(Icons.receipt_long, color: AppColors.primary),
+          title: Text(order['food'] ?? 'Food Item'),
+          subtitle: Text("UGX $priceDisplay"),
+          trailing: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: _getStatusColor(order['status'] ?? 'sent'),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              order['status'] ?? 'sent',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
         );
       },
     );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'sent':
+      case 'pending':
+        return Colors.orange;
+      case 'completed':
+      case 'delivered':
+        return Colors.green;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
   }
 
   Widget _metricCard(IconData icon, String value, String label, Color color) {
@@ -317,12 +512,23 @@ class _VendorHomePageState extends State<VendorHomePage> {
         children: [
           Icon(icon, color: color),
           const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(value, style: AppTextStyles.subHeader),
-              Text(label, style: AppTextStyles.body.copyWith(fontSize: 12)),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  value,
+                  style: AppTextStyles.subHeader.copyWith(fontSize: 16),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  label,
+                  style: AppTextStyles.body.copyWith(fontSize: 11),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           )
         ],
       ),
