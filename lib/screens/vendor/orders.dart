@@ -148,6 +148,25 @@ class _OrdersPageState extends State<OrdersPage> {
               return data.containsKey('status') && data['status'] != null && data['status'].toString().trim().isNotEmpty;
             }).toList();
 
+            // Sort orders by timestamp (latest first)
+            validOrders.sort((a, b) {
+              final aData = a.data() as Map<String, dynamic>;
+              final bData = b.data() as Map<String, dynamic>;
+
+              final aTimestamp = aData['clientTimestamp'];
+              final bTimestamp = bData['clientTimestamp'];
+
+              if (aTimestamp == null && bTimestamp == null) return 0;
+              if (aTimestamp == null) return 1;
+              if (bTimestamp == null) return -1;
+
+              if (aTimestamp is Timestamp && bTimestamp is Timestamp) {
+                return bTimestamp.compareTo(aTimestamp); // Latest first
+              }
+
+              return 0;
+            });
+
             int totalOrders = validOrders.length;
             int completedOrders = validOrders
                 .where((doc) => (doc.data() as Map<String, dynamic>)['status'] == "Completed")
@@ -193,7 +212,8 @@ class _OrdersPageState extends State<OrdersPage> {
                       final orderId = orderDoc.id;
                       final userId = orderData['userId'] ?? 'Unknown';
                       final customerName = _userIdToName[userId] ?? userId;
-                      final displayOrderId = '#ORD${(index + 1).toString().padLeft(3, '0')}';
+                      // Assign highest number to latest order (first in sorted list)
+                      final displayOrderId = '#ORD${(totalOrders - index).toString().padLeft(3, '0')}';
                       final timestamp = orderData['clientTimestamp'];
                       final orderTime = (timestamp != null && timestamp is Timestamp)
                           ? DateFormat('yyyy-MM-dd – kk:mm').format(timestamp.toDate())
