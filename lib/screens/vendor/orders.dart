@@ -52,19 +52,17 @@ class _OrdersPageState extends State<OrdersPage> {
     });
   }
 
-  void updateOrderStatus(String orderId, String currentStatus) async {
-    if (currentStatus.trim().toLowerCase() == "start preparing") {
-      await FirebaseFirestore.instance
-          .collection('orders')
-          .doc(orderId)
-          .update({'status': 'Completed'});
+  void updateOrderStatus(String orderId, String newStatus) async {
+    await FirebaseFirestore.instance
+        .collection('orders')
+        .doc(orderId)
+        .update({'status': newStatus});
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Order marked as "Completed"!')),
-      );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Order marked as "$newStatus"!')),
+    );
 
-      setState(() {});
-    }
+    setState(() {});
   }
 
   void cancelOrder(String orderId) async {
@@ -90,6 +88,46 @@ class _OrdersPageState extends State<OrdersPage> {
               Navigator.pop(ctx);
             },
             child: Text("Yes"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showStatusChangeOptions(String orderId, String currentStatus) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text("Change Order Status"),
+        content: Text("Do you want to change the order status?"),
+        actions: [
+          if (currentStatus == "start preparing") ...[
+            TextButton(
+              onPressed: () {
+                updateOrderStatus(orderId, "Pending");
+                Navigator.pop(ctx);
+              },
+              child: Text("Revert to Pending"),
+            ),
+            TextButton(
+              onPressed: () {
+                updateOrderStatus(orderId, "Completed");
+                Navigator.pop(ctx);
+              },
+              child: Text("Mark as Completed"),
+            ),
+          ] else if (currentStatus == "completed") ...[
+            TextButton(
+              onPressed: () {
+                updateOrderStatus(orderId, "Start Preparing");
+                Navigator.pop(ctx);
+              },
+              child: Text("Revert to Start Preparing"),
+            ),
+          ],
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text("Cancel"),
           ),
         ],
       ),
@@ -145,7 +183,9 @@ class _OrdersPageState extends State<OrdersPage> {
 
             final validOrders = allDocs.where((doc) {
               final data = doc.data() as Map<String, dynamic>;
-              return data.containsKey('status') && data['status'] != null && data['status'].toString().trim().isNotEmpty;
+              return data.containsKey('status') &&
+                  data['status'] != null &&
+                  data['status'].toString().trim().isNotEmpty;
             }).toList();
 
             // Sort orders by timestamp (latest first)
@@ -168,40 +208,16 @@ class _OrdersPageState extends State<OrdersPage> {
             });
 
             int totalOrders = validOrders.length;
-            int completedOrders = validOrders
-                .where((doc) => (doc.data() as Map<String, dynamic>)['status'] == "Completed")
-                .length;
-            int cancelledOrders = validOrders
-                .where((doc) => (doc.data() as Map<String, dynamic>)['status'] == "Cancelled")
-                .length;
-            int totalRevenue = validOrders.fold(0, (sum, doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              final price = data['foodPrice'] ?? 0;
-              return sum + (price is num ? price.toInt() : 0);
-            });
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Orders details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-                Text("Track and manage all your restaurant orders here!\n"),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _infoCard("Total orders", totalOrders.toString()),
-                    _infoCard("Completed", completedOrders.toString()),
-                  ],
+                Text(
+                  "Track and manage all your restaurant orders here!\n",
+                  style: TextStyle(fontSize: 16),
                 ),
-                SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _infoCard("Cancelled", cancelledOrders.toString()),
-                    _infoCard("Total Revenue", "shs.${NumberFormat('#,###').format(totalRevenue)}"),
-                  ],
-                ),
-                SizedBox(height: 16),
                 Text("Orders", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                SizedBox(height: 12),
                 Expanded(
                   child: ListView.builder(
                     itemCount: validOrders.length,
@@ -211,9 +227,9 @@ class _OrdersPageState extends State<OrdersPage> {
 
                       final orderId = orderDoc.id;
                       final userId = orderData['userId'] ?? 'Unknown';
-                      final customerName = _userIdToName[userId] ?? userId;
-                      // Assign highest number to latest order (first in sorted list)
-                      final displayOrderId = '#ORD${(totalOrders - index).toString().padLeft(3, '0')}';
+                      final customerName = _userIdToName[userId] ?? 'Unkown Customer';
+                      final displayOrderId =
+                          '#ORD${(totalOrders - index).toString().padLeft(3, '0')}';
                       final timestamp = orderData['clientTimestamp'];
                       final orderTime = (timestamp != null && timestamp is Timestamp)
                           ? DateFormat('yyyy-MM-dd – kk:mm').format(timestamp.toDate())
@@ -230,11 +246,16 @@ class _OrdersPageState extends State<OrdersPage> {
                         margin: EdgeInsets.symmetric(vertical: 8),
                         child: InkWell(
                           onTap: () {
-                            if (normalizedStatus == "pending") {
-                              _showSetPreparationTimeDialog(orderId);
-                            } else if (normalizedStatus == "start preparing") {
-                              updateOrderStatus(orderId, status);
-                            }
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => OrderDetailsPage(
+                                  orderData: orderData,
+                                  customerName: customerName,
+                                  orderId: displayOrderId,
+                                ),
+                              ),
+                            );
                           },
                           child: Padding(
                             padding: const EdgeInsets.all(12.0),
@@ -242,15 +263,20 @@ class _OrdersPageState extends State<OrdersPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text(customerName, style: TextStyle(fontWeight: FontWeight.bold)),
+                                    Text(customerName,
+                                        style:
+                                        TextStyle(fontWeight: FontWeight.bold)),
                                     if (normalizedStatus == "pending")
                                       GestureDetector(
-                                        onTap: () => _showCancelDialog(context, orderId),
+                                        onTap: () =>
+                                            _showCancelDialog(context, orderId),
                                         child: Tooltip(
                                           message: "Cancel Order",
-                                          child: Icon(Icons.cancel, color: Colors.red),
+                                          child:
+                                          Icon(Icons.cancel, color: Colors.red),
                                         ),
                                       ),
                                   ],
@@ -262,42 +288,57 @@ class _OrdersPageState extends State<OrdersPage> {
                                 Text("Payment: $paymentMethod"),
                                 SizedBox(height: 8),
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Container(
-                                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: normalizedStatus == "completed"
-                                            ? Colors.green
-                                            : normalizedStatus == "start preparing"
-                                            ? Colors.orange
-                                            : normalizedStatus == "cancelled"
-                                            ? Colors.grey
-                                            : Colors.blueAccent,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            normalizedStatus == "completed"
-                                                ? Icons.check
-                                                : normalizedStatus == "start preparing"
-                                                ? Icons.access_time
-                                                : normalizedStatus == "cancelled"
-                                                ? Icons.cancel
-                                                : Icons.fiber_new,
-                                            color: Colors.white,
-                                            size: 16,
-                                          ),
-                                          SizedBox(width: 4),
-                                          Text(
-                                            status[0].toUpperCase() + status.substring(1),
-                                            style: TextStyle(color: Colors.white),
-                                          ),
-                                        ],
+                                    GestureDetector(
+                                      onTap: () {
+                                        if (normalizedStatus == "pending") {
+                                          _showSetPreparationTimeDialog(orderId);
+                                        } else if (normalizedStatus == "start preparing" ||
+                                            normalizedStatus == "completed") {
+                                          _showStatusChangeOptions(orderId, normalizedStatus);
+                                        }
+                                        // No action for cancelled
+                                      },
+                                      child: Container(
+                                        padding: EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: normalizedStatus == "completed"
+                                              ? Colors.green
+                                              : normalizedStatus == "start preparing"
+                                              ? Colors.orange
+                                              : normalizedStatus == "cancelled"
+                                              ? Colors.grey
+                                              : Colors.blueAccent,
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              normalizedStatus == "completed"
+                                                  ? Icons.check
+                                                  : normalizedStatus == "start preparing"
+                                                  ? Icons.access_time
+                                                  : normalizedStatus == "cancelled"
+                                                  ? Icons.cancel
+                                                  : Icons.fiber_new,
+                                              color: Colors.white,
+                                              size: 16,
+                                            ),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              status[0].toUpperCase() + status.substring(1),
+                                              style:
+                                              TextStyle(color: Colors.white),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                    Text("Shs. $price", style: TextStyle(fontWeight: FontWeight.bold)),
+                                    Text("Shs. $price",
+                                        style: TextStyle(fontWeight: FontWeight.bold)),
                                   ],
                                 ),
                               ],
@@ -315,22 +356,58 @@ class _OrdersPageState extends State<OrdersPage> {
       ),
     );
   }
+}
 
-  Widget _infoCard(String title, String value) {
-    return Container(
-      width: 150,
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey[300],
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
-          SizedBox(height: 4),
-          Text(value),
-        ],
+// Orders Details Page
+class OrderDetailsPage extends StatelessWidget {
+  final Map<String, dynamic> orderData;
+  final String customerName;
+  final String orderId;
+
+  const OrderDetailsPage({
+    required this.orderData,
+    required this.customerName,
+    required this.orderId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final formatter = DateFormat('yyyy-MM-dd – kk:mm');
+    final timestamp = orderData['clientTimestamp'];
+    final orderTime = (timestamp != null)
+        ? formatter.format(timestamp.toDate())
+        : 'Unknown';
+
+    final deliveryMan = orderData['deliveryMan'];
+    final deliveryInfo = deliveryMan != null && deliveryMan.toString().isNotEmpty
+        ? "Assigned to: $deliveryMan"
+        : "No delivery person assigned yet";
+
+    return Scaffold(
+      appBar: AppBar(title: Text("Order Details")),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: ListView(
+          children: [
+            Text("Order ID: $orderId",
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            SizedBox(height: 10),
+            Text("Customer: $customerName"),
+            Text("Food: ${orderData['food'] ?? 'N/A'}"),
+            Text("Price: Shs. ${orderData['foodPrice'] ?? 'N/A'}"),
+            Text("Meal Type: ${orderData['mealType'] ?? 'N/A'}"),
+            Text("Payment Method: ${orderData['paymentMethod'] ?? 'N/A'}"),
+            SizedBox(height: 10),
+            Text("Delivery Address: ${orderData['deliveryAddress'] ?? 'N/A'}"),
+            Text("Contact Info: ${orderData['contactInfo'] ?? 'N/A'}"),
+            SizedBox(height: 10),
+            Text("Notes: ${orderData['notes'] ?? 'No notes'}"),
+            SizedBox(height: 10),
+            Text("Order Time: $orderTime"),
+            SizedBox(height: 10),
+            Text(deliveryInfo, style: TextStyle(color: Colors.blueGrey)),
+          ],
+        ),
       ),
     );
   }
