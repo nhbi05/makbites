@@ -10,6 +10,7 @@ import '../../config/routes.dart';
 import 'package:geolocator/geolocator.dart';
 import 'restaurant_menu_screen.dart';
 import 'browse_restaurants_screen.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   @override
@@ -19,6 +20,45 @@ class CustomerHomeScreen extends StatefulWidget {
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   Position? _currentPosition;
   String? _locationError;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupFCM();
+  }
+
+  Future<void> _setupFCM() async {
+    // Request notification permissions (especially for iOS/Android 13+)
+    await FirebaseMessaging.instance.requestPermission();
+
+    // Get the FCM token
+    String? token = await FirebaseMessaging.instance.getToken();
+    print('FCM Token: ' + (token ?? 'null'));
+    // Save the token to Firestore under the user's document
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && token != null) {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'fcmToken': token,
+      });
+    }
+
+    // Listen for foreground notifications
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      if (message.notification != null) {
+        final snackBar = SnackBar(
+          content: Text(message.notification!.title ?? 'Notification'),
+          duration: Duration(seconds: 3),
+        );
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      }
+    });
+
+    // Listen for when the app is opened from a notification
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      // You can navigate or update UI here
+      print('Notification caused app to open: ${message.notification?.title}');
+    });
+  }
 
   Future<void> _getCurrentLocation() async {
     setState(() {
