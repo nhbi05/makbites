@@ -8,6 +8,9 @@ import '../../models/user_event.dart';
 import 'checkout_page.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../automation/add_event_form.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 
 // Models for Restaurant and MenuItem
 class MenuItem {
@@ -94,6 +97,10 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
   ];
 
   final List<String> mealTypes = ['Breakfast', 'Lunch', 'Supper'];
+
+  String? _locationAddress;
+  double? _locationLat;
+  double? _locationLng;
 
   @override
   void initState() {
@@ -440,13 +447,32 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
   }
 
   Widget _buildLocationField() {
-    return TextFormField(
-      decoration: InputDecoration(
-        labelText: 'Delivery Location',
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        prefixIcon: Icon(Icons.location_on),
-      ),
-      onChanged: (val) => setState(() => _location = val),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ElevatedButton.icon(
+          icon: Icon(Icons.location_on),
+          label: Text(_locationAddress != null ? 'Change Location' : 'Select on Map'),
+          onPressed: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => MapPicker()),
+            );
+            if (result != null) {
+              setState(() {
+                _locationAddress = result['address'];
+                _locationLat = result['lat'];
+                _locationLng = result['lng'];
+              });
+            }
+          },
+        ),
+        if (_locationAddress != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Text('Selected: $_locationAddress'),
+          ),
+      ],
     );
   }
 
@@ -459,11 +485,12 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
     }
     return _selectedDate != null &&
         _mealType != null &&
-        _location != null &&
-        _location!.trim().isNotEmpty;
+        _locationAddress != null &&
+        _locationLat != null &&
+        _locationLng != null;
   }
 
-  void _submitOrder() {
+  void _submitOrder() async {
     // Prevent placing an order for a meal time that has already passed (for today)
     final now = DateTime.now();
     if (_selectedDate != null &&
@@ -490,19 +517,33 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
         return;
       }
     }
+    // Fetch customer phone asynchronously
+    String customerPhone = '';
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId != null) {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+      print('Fetched user doc for $userId: ${userDoc.data()}'); // <-- Add this
+      customerPhone = userDoc.data()?['phone'] ?? '';
+      print('Fetched phone: $customerPhone'); // <-- And this
+    }
     // Add the order to the local summary only
     setState(() {
       _ordersForDay.add({
         'mealType': _mealType,
-        'location': _location,
+        'location': _locationAddress,
+        'locationLat': _locationLat,
+        'locationLng': _locationLng,
         'orderDate': _selectedDate,
         'restaurant': _selectedRestaurantSimple,
         'food': _selectedFoodSimple,
         'foodPrice': _getFoodPrice(_selectedFoodSimple),
+        'customerPhone': customerPhone,
       });
       // Reset only mealType, location, restaurant, food
       _mealType = null;
-      _location = null;
+      _locationAddress = null;
+      _locationLat = null;
+      _locationLng = null;
       _selectedRestaurantSimple = null;
       _selectedFoodSimple = null;
     });
@@ -568,6 +609,121 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class MapPicker extends StatefulWidget {
+  @override
+  _MapPickerState createState() => _MapPickerState();
+}
+
+class _MapPickerState extends State<MapPicker> {
+  LatLng? _pickedLocation;
+  String? _address;
+  GoogleMapController? _mapController;
+
+  @override
+  void initState() {
+    super.initState();
+    _determinePosition();
+  }
+
+  Future<void> _determinePosition() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+    setState(() {
+      _pickedLocation = LatLng(position.latitude, position.longitude);
+    });
+    _getAddress(_pickedLocation!);
+  }
+
+  Future<void> _getAddress(LatLng latLng) async {
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(latLng.latitude, latLng.longitude);
+      if (placemarks.isNotEmpty) {
+        Placemark place = placemarks.first;
+        setState(() {
+          _address = "${place.name}, ${place.locality}, ${place.subAdministrativeArea}";
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _address = null;
+      });
+    }
+  }
+
+  void _onMapTap(LatLng latLng) {
+    setState(() {
+      _pickedLocation = latLng;
+    });
+    _getAddress(latLng);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Pick Delivery Location')),
+      body: _pickedLocation == null
+          ? Center(child: CircularProgressIndicator())
+          : Stack(
+              children: [
+                GoogleMap(
+                  initialCameraPosition: CameraPosition(
+                    target: _pickedLocation!,
+                    zoom: 16,
+                  ),
+                  onMapCreated: (controller) => _mapController = controller,
+                  markers: _pickedLocation != null
+                      ? {
+                          Marker(
+                            markerId: MarkerId('picked'),
+                            position: _pickedLocation!,
+                          ),
+                        }
+                      : {},
+                  onTap: _onMapTap,
+                  myLocationEnabled: true,
+                  myLocationButtonEnabled: true,
+                ),
+                if (_address != null)
+                  Positioned(
+                    bottom: 80,
+                    left: 16,
+                    right: 16,
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Text(
+                          _address!,
+                          style: TextStyle(fontSize: 16),
+                        ),
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  bottom: 16,
+                  left: 16,
+                  right: 16,
+                  child: ElevatedButton(
+                    onPressed: _pickedLocation != null
+                        ? () {
+                            Navigator.pop(context, {
+                              'lat': _pickedLocation!.latitude,
+                              'lng': _pickedLocation!.longitude,
+                              'address': _address,
+                            });
+                          }
+                        : null,
+                    child: Text('Confirm Location'),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 } 

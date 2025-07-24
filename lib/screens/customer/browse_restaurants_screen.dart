@@ -5,6 +5,7 @@ import '../../models/cart_model.dart';
 import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'restaurant_menu_screen.dart';
+import '../../widgets/map_picker.dart'; // Added import for MapPicker
 
 class BrowseRestaurantsScreen extends StatefulWidget {
   @override
@@ -223,6 +224,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   late int deliveryFee;
   late String deliveryFeeLabel;
   bool _isSaving = false;
+  Map<String, dynamic>? _pickedLocationData; // To store lat/lng/address
 
   @override
   void initState() {
@@ -238,10 +240,28 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.dispose();
   }
 
+  Future<void> _openMapPicker() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => MapPicker()),
+    );
+    if (result != null && result is Map<String, dynamic>) {
+      setState(() {
+        _pickedLocationData = result;
+        _locationController.text = result['address'] ?? '';
+      });
+    }
+  }
+
   Future<void> _saveOrderToFirestore(List<Map<String, dynamic>> items, String location, double total, int deliveryFee) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception('User not logged in');
     try {
+      // Determine restaurant name from the first item (assuming all items are from the same restaurant)
+      String? restaurantName;
+      if (items.isNotEmpty && items[0].containsKey('restaurant')) {
+        restaurantName = items[0]['restaurant'];
+      }
       await FirebaseFirestore.instance.collection('orders').add({
         'userId': user.uid,
         'items': items,
@@ -250,9 +270,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         'deliveryFee': deliveryFee,
         'clientTimestamp': DateTime.now(),
         'serverTimestamp': FieldValue.serverTimestamp(),
-        'status': 'sent', // Immediately sent to restaurant
+        'status': 'pending', // Ready for vendor assignment
         'sentAt': DateTime.now(), // Add sent timestamp
         'orderSource': 'browse',
+        if (restaurantName != null) 'restaurant': restaurantName, // <-- Add top-level restaurant field
+        if (_pickedLocationData != null) ...{
+          'customerLocation': {
+            'latitude': _pickedLocationData!['lat'],
+            'longitude': _pickedLocationData!['lng'],
+          },
+          'customerAddress': _pickedLocationData!['address'],
+        },
       });
     } catch (e) {
       print('Error saving order: $e');
@@ -310,6 +338,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               decoration: InputDecoration(
                 labelText: 'Delivery Location',
                 border: OutlineInputBorder(),
+              ),
+            ),
+            SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: Icon(Icons.map),
+                label: Text('Pick on Map'),
+                onPressed: _openMapPicker,
               ),
             ),
             SizedBox(height: 16),
