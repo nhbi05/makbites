@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import '../../constants/app_colours.dart';
 import '../../constants/text_styles.dart';
 import 'menu_page.dart';
-//import 'analytics.dart';
 import 'orders.dart';
-import 'profile.dart'; // Make sure this exists
+import 'profile.dart';
 
 class VendorHomePage extends StatefulWidget {
   @override
@@ -15,6 +18,7 @@ class VendorHomePage extends StatefulWidget {
 class _VendorHomePageState extends State<VendorHomePage> {
   int _currentIndex = 0;
   late List<Widget> _pages;
+  late String vendorRestaurantId;
 
   @override
   void initState() {
@@ -26,12 +30,78 @@ class _VendorHomePageState extends State<VendorHomePage> {
       statusBarBrightness: Brightness.light,
     ));
 
+    vendorRestaurantId = FirebaseAuth.instance.currentUser!.uid;
+
     _pages = [
       _buildDashboard(),
-      Container(),
+      OrdersPage(vendorRestaurantId: vendorRestaurantId),
       MenuPage(),
-      Container(), // Placeholder for Profile tab, we push manually
+      Container(),
     ];
+
+    saveDeviceToken();
+
+    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await FirebaseFirestore.instance
+            .collection('restaurants')
+            .doc(user.uid)
+            .update({'deviceToken': newToken});
+        print('🔄 Device token refreshed and updated: $newToken');
+      }
+    });
+
+    requestNotificationPermission();
+
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      print('📬 Received a message while app is in the foreground!');
+      print('Message data: ${message.data}');
+      if (message.notification != null) {
+        print('Notification Title: ${message.notification!.title}');
+        print('Notification Body: ${message.notification!.body}');
+        // Optional: Show an in-app alert/snackbar here
+      }
+    });
+  }
+
+  Future<void> requestNotificationPermission() async {
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      print('✅ User granted permission for notifications');
+    } else if (settings.authorizationStatus == AuthorizationStatus.provisional) {
+      print('ℹ️ User granted provisional permission');
+    } else {
+      print('❌ User declined or has not accepted notification permission');
+    }
+  }
+
+  // Save device token to Firestore
+  Future<void> saveDeviceToken() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final token = await FirebaseMessaging.instance.getToken();
+
+    if (token != null) {
+      await FirebaseFirestore.instance
+          .collection('restaurants')
+          .doc(user.uid)
+          .update({
+        'deviceToken': token,
+      });
+
+      print('✅ Device token saved: $token');
+    } else {
+      print('❌ Could not get device token');
+    }
   }
 
   @override
