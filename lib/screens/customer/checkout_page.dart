@@ -45,8 +45,21 @@ class _CheckoutPageState extends State<CheckoutPage> {
         final mealType = order['mealType'];
         final optimalMealTimes = widget.optimalMealTimes;
         DateTime? scheduledSendTime;
+        DateTime? optimalMealTime;
         if (optimalMealTimes != null && optimalMealTimes[mealType] != null) {
-          scheduledSendTime = optimalMealTimes[mealType]!.subtract(Duration(minutes: 30));
+          optimalMealTime = optimalMealTimes[mealType];
+          scheduledSendTime = optimalMealTime!.subtract(Duration(minutes: 30));
+        }
+        // Determine status and send logic
+        String status;
+        DateTime? sentAt;
+        if (widget.orderSource == 'browse') {
+          status = 'sent';
+          sentAt = DateTime.now();
+          scheduledSendTime = null;
+        } else {
+          status = 'pending';
+          sentAt = null; // Explicitly do not set sentAt for scheduled orders
         }
         await FirebaseFirestore.instance.collection('orders').add({
           'userId': user.uid,
@@ -59,9 +72,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'orderDate': order['orderDate'] ?? DateTime.now(),
           'clientTimestamp': DateTime.now(),
           'serverTimestamp': FieldValue.serverTimestamp(),
-          'status': 'pending', // Not sent yet
+          'status': status, // Set to 'sent' for browse, 'pending' for schedule
           'orderSource': widget.orderSource,
-          'scheduledSendTime': scheduledSendTime, // Add this field
+          'scheduledSendTime': scheduledSendTime, // null for browse
+          if (sentAt != null) 'sentAt': sentAt,
         });
       } catch (e) {
         print('Error saving order: $e');

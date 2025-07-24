@@ -22,15 +22,24 @@ exports.sendScheduledOrders = onSchedule("every 1 minutes", async (event) => {
       .get();
 
   const batch = getFirestore().batch();
+  const restaurantOrdersRef = getFirestore().collection("restaurant_orders");
 
   snapshot.forEach((doc) => {
+    const orderData = doc.data();
     batch.update(doc.ref, {status: "sent", sentAt: now});
-    // Optionally: trigger notification to restaurant here
+    // Send to restaurant by writing to restaurant_orders collection
+    const newRestaurantOrderRef = restaurantOrdersRef.doc();
+    batch.set(newRestaurantOrderRef, {
+      ...orderData,
+      status: "sent",
+      sentAt: now,
+      originalOrderId: doc.id,
+    });
   });
 
   await batch.commit();
   console.log(
-      "Processed " + snapshot.size + " scheduled orders.",
+      "Processed " + snapshot.size + " scheduled orders and sent to restaurants."
   );
   return null;
 });
