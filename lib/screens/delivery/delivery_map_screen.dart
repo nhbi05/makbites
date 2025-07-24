@@ -29,7 +29,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
   int _currentOptimizedIndex = 0;
   late List<DeliveryLocation> _activeDeliveries;
 
-  final String _googleApiKey = 'AIzaSyAS10x2khf_QHLIGeyWIADDpoGLgaUkln0'; // <-- Replace with your real API key
+  final String _googleApiKey = 'AIzaSyAS10x2khf_QHLIGeyWIADDpoGLgaUkln0'; 
 
   @override
   void initState() {

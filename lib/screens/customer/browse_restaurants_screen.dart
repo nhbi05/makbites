@@ -257,6 +257,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception('User not logged in');
     try {
+      // Fetch the user's phone number
+      String? customerPhone;
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (userDoc.exists) {
+        customerPhone = userDoc.data()?['phone'];
+      }
       // Determine restaurant name from the first item (assuming all items are from the same restaurant)
       String? restaurantName;
       if (items.isNotEmpty && items[0].containsKey('restaurant')) {
@@ -274,6 +280,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         'sentAt': DateTime.now(), // Add sent timestamp
         'orderSource': 'browse',
         if (restaurantName != null) 'restaurant': restaurantName, // <-- Add top-level restaurant field
+        if (customerPhone != null) 'customerPhone': customerPhone, // <-- Add this line
         if (_pickedLocationData != null) ...{
           'customerLocation': {
             'latitude': _pickedLocationData!['lat'],

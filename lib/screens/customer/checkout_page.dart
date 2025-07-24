@@ -90,17 +90,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'serverTimestamp': FieldValue.serverTimestamp(),
           'status': status, // Set to 'sent' for browse, 'pending' for schedule
           'orderSource': widget.orderSource,
-<<<<<<< HEAD
-          'scheduledSendTime': scheduledSendTime, // null for browse
-          if (sentAt != null) 'sentAt': sentAt,
-=======
           'scheduledSendTime': scheduledSendTime, // Add this field
           'customerLocation': {
             'latitude': order['locationLat'],
             'longitude': order['locationLng'],
           },
           'customerPhone': customerPhone, // <-- Ensure phone is saved
->>>>>>> 6d230740c1a2cf40514cb8bf036462b7138fcda5
         });
       } catch (e) {
         print('Error saving order: $e');
