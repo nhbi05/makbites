@@ -29,7 +29,12 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
   int _currentOptimizedIndex = 0;
   late List<DeliveryLocation> _activeDeliveries;
 
-  final String _googleApiKey = 'AIzaSyAS10x2khf_QHLIGeyWIADDpoGLgaUkln0'; 
+  final String _googleApiKey = 'AIzaSyAS10x2khf_QHLIGeyWIADDpoGLgaUkln0';
+
+  // Remove multi-route support fields
+  // List<Map<String, dynamic>> _routes = [];
+  // int _selectedRouteIndex = 0;
+  // List<Color> _routeColors = [Colors.blue, Colors.green, Colors.orange, Colors.purple, Colors.red, Colors.brown];
 
   @override
   void initState() {
@@ -37,6 +42,8 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
     _activeDeliveries = List.from(widget.deliveries); // Make a mutable copy
     _initializeMap();
     _loadDeliveryDetails();
+    // Fetch multiple routes after map and location are ready
+    Future.delayed(Duration(seconds: 2), _optimizeRoute);
   }
 
   Future<void> _initializeMap() async {
@@ -197,14 +204,23 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
     if (_activeDeliveries.isEmpty || _currentLocation == null) return;
 
     final origin = '${_currentLocation!.latitude},${_currentLocation!.longitude}';
-    final destination = '${_activeDeliveries.last.coordinates.latitude},${_activeDeliveries.last.coordinates.longitude}';
+    
+    // If only one delivery, no optimization needed
+    if (_activeDeliveries.length == 1) {
+      setState(() {
+        _waypointOrder = [0]; // Single delivery at index 0
+        _polylines = {}; // Clear polylines for single delivery
+      });
+      return;
+    }
+    
+    // For multiple deliveries, treat all as waypoints (no fixed destination)
     final waypoints = _activeDeliveries
-        .sublist(0, _activeDeliveries.length - 1)
         .map((d) => '${d.coordinates.latitude},${d.coordinates.longitude}')
         .join('|');
 
     final url =
-        'https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$destination&waypoints=optimize:true|$waypoints&key=$_googleApiKey';
+        'https://maps.googleapis.com/maps/api/directions/json?origin=$origin&destination=$origin&waypoints=optimize:true|$waypoints&key=$_googleApiKey';
 
     try {
       final response = await http.get(Uri.parse(url));
@@ -239,42 +255,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
     }
   }
 
-  Future<void> _launchUrl(String url) async {
-    if (await canLaunch(url)) {
-      await launch(url);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not launch URL')),
-      );
-    }
-  }
-
-  void _callCustomerFor(String phoneNumber) async {
-    final formatted = phoneNumber.startsWith('+') ? phoneNumber : '+$phoneNumber';
-    final url = 'tel:$formatted';
-    if (await canLaunch(url)) {
-      await launch(url);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not call $formatted')),
-      );
-    }
-  }
-
-  Future<void> _loadDeliveryDetails() async {
-    // Load additional delivery details if needed
-    // This can be used to fetch real-time updates from Firebase
-  }
-
-  void _removeDestination(int indexToRemove) {
-    setState(() {
-      _activeDeliveries.removeAt(indexToRemove);
-      _waypointOrder = null;
-      _currentOptimizedIndex = 0;
-      _createMarkers(); // Update markers after removal
-    });
-    _optimizeRoute();
-  }
+  // Remove _fetchMultipleRoutes, _drawAllRoutes, _onRouteSelected, _getBoundsForRoute, _buildRouteSelectionSheet
 
   @override
   Widget build(BuildContext context) {
@@ -296,7 +277,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
             initialCameraPosition: CameraPosition(
               target: _activeDeliveries.isNotEmpty 
                   ? _activeDeliveries[0].coordinates 
-                  : LatLng(0.3136, 32.5811), // Default to Makerere coordinates
+                  : LatLng(0.3136, 32.5811),
               zoom: 14,
             ),
             markers: _markers,
@@ -307,12 +288,11 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
           ),
           if (_activeDeliveries.isNotEmpty && _waypointOrder != null && _waypointOrder!.isNotEmpty)
             Positioned(
-              bottom: 16, // Move card lower to fill space
+              bottom: 16,
               left: 16,
               right: 16,
               child: _buildOptimizedDeliveryCard(),
             ),
-          // Remove navigation controls bar
         ],
       ),
     );
@@ -467,6 +447,8 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
     );
   }
 
+  // Remove _buildRouteSelectionSheet
+
   Widget _buildNavigationControls() {
     return Card(
       elevation: 4,
@@ -498,5 +480,42 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _launchUrl(String url) async {
+    if (await canLaunch(url)) {
+      await launch(url);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not launch URL')),
+      );
+    }
+  }
+
+  void _callCustomerFor(String phoneNumber) async {
+    final formatted = phoneNumber.startsWith('+') ? phoneNumber : '+$phoneNumber';
+    final url = 'tel:$formatted';
+    if (await canLaunch(url)) {
+      await launch(url);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not call $formatted')),
+      );
+    }
+  }
+
+  Future<void> _loadDeliveryDetails() async {
+    // Load additional delivery details if needed
+    // This can be used to fetch real-time updates from Firebase
+  }
+
+  void _removeDestination(int indexToRemove) {
+    setState(() {
+      _activeDeliveries.removeAt(indexToRemove);
+      _waypointOrder = null;
+      _currentOptimizedIndex = 0;
+      _createMarkers(); // Update markers after removal
+    });
+    _optimizeRoute();
   }
 }

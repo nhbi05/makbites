@@ -11,6 +11,8 @@ import '../automation/add_event_form.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 // Models for Restaurant and MenuItem
 class MenuItem {
@@ -102,6 +104,12 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
   double? _locationLat;
   double? _locationLng;
 
+  // Autocomplete functionality
+  final TextEditingController _locationSearchController = TextEditingController();
+  List<Map<String, String>> _locationSuggestions = [];
+  bool _isSearchingLocation = false;
+  final String _apiKey = 'AIzaSyAS10x2khf_QHLIGeyWIADDpoGLgaUkln0';
+
   @override
   void initState() {
     super.initState();
@@ -110,6 +118,85 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
     if (_optimalMealTimes == null) {
       _fetchOptimalMealTimes();
     }
+    _locationSearchController.addListener(_onLocationSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _locationSearchController.removeListener(_onLocationSearchChanged);
+    _locationSearchController.dispose();
+    super.dispose();
+  }
+
+  void _onLocationSearchChanged() async {
+    final query = _locationSearchController.text.trim();
+    if (query.isEmpty) {
+      setState(() => _locationSuggestions = []);
+      return;
+    }
+    await _fetchLocationAutocompleteSuggestions(query);
+  }
+
+  Future<void> _fetchLocationAutocompleteSuggestions(String input) async {
+    final url = Uri.parse(
+      'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${Uri.encodeComponent(input)}&key=$_apiKey&components=country:UG',
+    );
+    setState(() => _isSearchingLocation = true);
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 'OK') {
+          setState(() {
+            _locationSuggestions = List<Map<String, String>>.from(
+              (data['predictions'] as List).map((item) => {
+                'description': item['description'].toString(),
+                'place_id': item['place_id'].toString(),
+              }),
+            );
+          });
+        } else {
+          setState(() => _locationSuggestions = []);
+        }
+      } else {
+        setState(() => _locationSuggestions = []);
+      }
+    } catch (e) {
+      setState(() => _locationSuggestions = []);
+    } finally {
+      setState(() => _isSearchingLocation = false);
+    }
+  }
+
+  Future<void> _selectLocationSuggestion(Map<String, String> suggestion) async {
+    setState(() {
+      _isSearchingLocation = true;
+      _locationSuggestions = [];
+      _locationSearchController.text = suggestion['description'] ?? '';
+    });
+    final placeId = suggestion['place_id'];
+    if (placeId != null) {
+      final url = Uri.parse(
+        'https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$_apiKey',
+      );
+      try {
+        final response = await http.get(url);
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data['status'] == 'OK') {
+            final loc = data['result']['geometry']['location'];
+            setState(() {
+              _locationAddress = suggestion['description'];
+              _locationLat = loc['lat'];
+              _locationLng = loc['lng'];
+            });
+          }
+        }
+      } catch (e) {
+        // Handle error silently
+      }
+    }
+    setState(() => _isSearchingLocation = false);
   }
 
   Future<void> _fetchOptimalMealTimes() async {
@@ -450,9 +537,90 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Search field with autocomplete
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: TextField(
+            controller: _locationSearchController,
+            decoration: InputDecoration(
+              hintText: 'Search for delivery location...',
+              prefixIcon: Icon(Icons.search, color: Colors.grey),
+              suffixIcon: _isSearchingLocation
+                  ? Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : _locationSearchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(Icons.clear, color: Colors.grey),
+                          onPressed: () {
+                            _locationSearchController.clear();
+                            setState(() {
+                              _locationSuggestions = [];
+                              _locationAddress = null;
+                              _locationLat = null;
+                              _locationLng = null;
+                            });
+                          },
+                        )
+                      : null,
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+          ),
+        ),
+        
+        // Suggestions dropdown
+        if (_locationSuggestions.isNotEmpty)
+          Container(
+            margin: EdgeInsets.only(top: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 8,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            constraints: BoxConstraints(maxHeight: 200),
+            child: ListView.separated(
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              itemCount: _locationSuggestions.length,
+              separatorBuilder: (context, index) => Divider(height: 1),
+              itemBuilder: (context, index) {
+                final suggestion = _locationSuggestions[index];
+                return ListTile(
+                  dense: true,
+                  leading: Icon(Icons.location_on, color: Colors.red, size: 20),
+                  title: Text(
+                    suggestion['description'] ?? '',
+                    style: TextStyle(fontSize: 14),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () => _selectLocationSuggestion(suggestion),
+                );
+              },
+            ),
+          ),
+        
+        SizedBox(height: 12),
+        
+        // Map picker button
         ElevatedButton.icon(
-          icon: Icon(Icons.location_on),
-          label: Text(_locationAddress != null ? 'Change Location' : 'Select on Map'),
+          icon: Icon(Icons.map),
+          label: Text(_locationAddress != null ? 'Change Location on Map' : 'Select on Map'),
           onPressed: () async {
             final result = await Navigator.push(
               context,
@@ -463,14 +631,34 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
                 _locationAddress = result['address'];
                 _locationLat = result['lat'];
                 _locationLng = result['lng'];
+                _locationSearchController.text = result['address'] ?? '';
               });
             }
           },
         ),
+        
+        // Selected location display
         if (_locationAddress != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Text('Selected: $_locationAddress'),
+          Container(
+            margin: EdgeInsets.only(top: 8),
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Selected: $_locationAddress',
+                    style: TextStyle(color: Colors.green.shade700),
+                  ),
+                ),
+              ],
+            ),
           ),
       ],
     );
@@ -546,6 +734,8 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
       _locationLng = null;
       _selectedRestaurantSimple = null;
       _selectedFoodSimple = null;
+      _locationSearchController.clear();
+      _locationSuggestions = [];
     });
   }
 
