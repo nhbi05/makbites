@@ -18,12 +18,16 @@ class VendorHomePage extends StatefulWidget {
 class _VendorHomePageState extends State<VendorHomePage> {
   int _currentIndex = 0;
   late List<Widget> _pages;
+  String? _restaurantId;
+  Map<String, String> _userIdToName = {};
 
   @override
   void initState() {
     super.initState();
     _initFCM();
     _getAndSaveFcmToken();
+    _loadRestaurantId();
+    _loadUsers();
 
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
       statusBarColor: Colors.amber[100],
@@ -81,6 +85,28 @@ class _VendorHomePageState extends State<VendorHomePage> {
     }
   }
 
+  Future<void> _loadRestaurantId() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    setState(() {
+      _restaurantId = user.uid;
+    });
+  }
+
+  Future<void> _loadUsers() async {
+    final userSnapshot = await FirebaseFirestore.instance.collection('users').get();
+    final usersMap = <String, String>{};
+    for (var doc in userSnapshot.docs) {
+      final data = doc.data();
+      if (data.containsKey('uid') && data.containsKey('name')) {
+        usersMap[data['uid']] = data['name'];
+      }
+    }
+    setState(() {
+      _userIdToName = usersMap;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -135,12 +161,48 @@ class _VendorHomePageState extends State<VendorHomePage> {
           _headerSection(),
           _metricsGrid(),
           _sectionTitle("Recent Orders"),
-          _orderCard("#1234", "Matooke and Rice", "John Doe", "Preparing"),
+          _recentOrdersList(),
           _sectionTitle("Popular Orders"),
           _orderCard("#1221", "Chapati and Beans", "Jane Smith", "Completed"),
           _orderCard("#1222", "Chicken Pilau", "Alex Kim", "Completed"),
         ],
       ),
+    );
+  }
+
+  Widget _recentOrdersList() {
+    if (_restaurantId == null) {
+      return Center(child: CircularProgressIndicator());
+    }
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('orders')
+          .where('restaurant', isEqualTo: _restaurantId)
+          .orderBy('clientTimestamp', descending: true)
+          .limit(5)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Text('No recent orders found.', style: AppTextStyles.body),
+          );
+        }
+        final orders = snapshot.data!.docs;
+        return Column(
+          children: orders.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final meal = data['food'] ?? 'Unknown';
+            final userId = data['userId'] ?? 'Unknown';
+            final customer = _userIdToName[userId] ?? userId;
+            final status = data['status'] ?? 'Pending';
+            return _orderCard(doc.id, meal, customer, status);
+          }).toList(),
+        );
+      },
     );
   }
 
@@ -207,6 +269,16 @@ class _VendorHomePageState extends State<VendorHomePage> {
   }
 
   Widget _orderCard(String id, String meal, String customer, String status) {
+    Color chipColor;
+    if (status.toLowerCase() == "preparing" || status.toLowerCase() == "start preparing") {
+      chipColor = Colors.orange[100]!;
+    } else if (status.toLowerCase() == "completed") {
+      chipColor = Colors.green[100]!;
+    } else if (status.toLowerCase() == "cancelled") {
+      chipColor = Colors.grey[300]!;
+    } else {
+      chipColor = Colors.blue[100]!;
+    }
     return Card(
       margin: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: ListTile(
@@ -215,8 +287,7 @@ class _VendorHomePageState extends State<VendorHomePage> {
         subtitle: Text(customer, style: AppTextStyles.body.copyWith(fontSize: 14)),
         trailing: Chip(
           label: Text(status),
-          backgroundColor:
-          status == "Preparing" ? Colors.orange[100] : Colors.green[100],
+          backgroundColor: chipColor,
         ),
       ),
     );
