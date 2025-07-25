@@ -1178,8 +1178,7 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
       final waypointOrder = List<int>.from(route['waypoint_order']);
 
       // Decode polyline
-      PolylinePoints polylinePoints = PolylinePoints();
-      List<PointLatLng> result = polylinePoints.decodePolyline(polyline);
+      List<PointLatLng> result = PolylinePoints.decodePolyline(polyline);
 
       setState(() {
         _optimizedPolyline = result

@@ -230,8 +230,7 @@ class _DeliveryMapScreenState extends State<DeliveryMapScreen> {
         final route = data['routes'][0];
         final waypointOrder = List<int>.from(route['waypoint_order']);
         final polyline = route['overview_polyline']['points'];
-        PolylinePoints polylinePoints = PolylinePoints();
-        List<PointLatLng> result = polylinePoints.decodePolyline(polyline);
+        List<PointLatLng> result = PolylinePoints.decodePolyline(polyline);
         setState(() {
           _waypointOrder = waypointOrder;
           _polylines = {
