@@ -13,6 +13,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class DeliveryHomeScreen extends StatefulWidget {
   @override
@@ -60,6 +61,8 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
   @override
   void initState() {
     super.initState();
+    _initFCM();
+    _getAndSaveFcmToken();
     _getCurrentLocation().then((_) => _getOptimizedRoute());
     _loadTodayStats();
   }
@@ -1265,6 +1268,61 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not call $formatted')),
       );
+    }
+  }
+
+  void _initFCM() async {
+    // Request permissions (iOS)
+    await FirebaseMessaging.instance.requestPermission();
+
+    // Get the token
+    String? token = await FirebaseMessaging.instance.getToken();
+    print('FCM Token: $token');
+
+    // Save the token to Firestore under the user's document
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && token != null) {
+      await FirebaseFirestore.instance
+          .collection('users') // Change to your actual collection name for riders if different
+          .doc(user.uid)
+          .update({'fcmToken': token});
+    }
+
+    // Listen for foreground messages
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      print('Received a message in the foreground!');
+      print('Message data:  [message.data]');
+      if (message.notification != null) {
+        print('Message also contained a notification:  [message.notification]');
+      }
+      // Optionally show a local notification here
+    });
+
+    // Listen for messages when the app is opened from a notification
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      print('Message clicked!');
+      // Handle navigation or other logic here
+    });
+  }
+
+  void _getAndSaveFcmToken() async {
+    String? token = await FirebaseMessaging.instance.getToken();
+    print('FCM Token: $token');
+    _saveTokenToFirestore(token);
+    // Listen for token refresh
+    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+      print('New FCM Token: $newToken');
+      _saveTokenToFirestore(newToken);
+    });
+  }
+
+  void _saveTokenToFirestore(String? token) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && token != null) {
+      await FirebaseFirestore.instance
+          .collection('users') // Change to your actual collection name for riders if different
+          .doc(user.uid)
+          .update({'fcmToken': token});
     }
   }
 }

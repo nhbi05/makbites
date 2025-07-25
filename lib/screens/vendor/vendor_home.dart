@@ -6,6 +6,9 @@ import 'menu_page.dart';
 //import 'analytics.dart';
 import 'orders.dart';
 import 'profile.dart'; // Make sure this exists
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class VendorHomePage extends StatefulWidget {
   @override
@@ -19,6 +22,8 @@ class _VendorHomePageState extends State<VendorHomePage> {
   @override
   void initState() {
     super.initState();
+    _initFCM();
+    _getAndSaveFcmToken();
 
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
       statusBarColor: Colors.amber[100],
@@ -32,6 +37,48 @@ class _VendorHomePageState extends State<VendorHomePage> {
       MenuPage(),
       Container(), // Placeholder for Profile tab, we push manually
     ];
+  }
+
+  void _initFCM() async {
+    // Request permissions (iOS)
+    await FirebaseMessaging.instance.requestPermission();
+
+    // Listen for foreground messages
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      print('Received a message in the foreground!');
+      print('Message data:  [message.data]');
+      if (message.notification != null) {
+        print('Message also contained a notification:  [message.notification]');
+      }
+      // Optionally show a local notification here
+    });
+
+    // Listen for messages when the app is opened from a notification
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      print('Message clicked!');
+      // Handle navigation or other logic here
+    });
+  }
+
+  void _getAndSaveFcmToken() async {
+    String? token = await FirebaseMessaging.instance.getToken();
+    print('FCM Token: $token');
+    _saveTokenToFirestore(token);
+    // Listen for token refresh
+    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+      print('New FCM Token: $newToken');
+      _saveTokenToFirestore(newToken);
+    });
+  }
+
+  void _saveTokenToFirestore(String? token) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && token != null) {
+      await FirebaseFirestore.instance
+          .collection('users') // Change to your actual collection name for vendors if different
+          .doc(user.uid)
+          .update({'fcmToken': token});
+    }
   }
 
   @override
