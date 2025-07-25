@@ -6,6 +6,8 @@ import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'restaurant_menu_screen.dart';
 import '../../widgets/map_picker.dart'; // Added import for MapPicker
+import 'dart:convert'; // Added import for json
+import 'package:http/http.dart' as http; // Added import for http
 
 class BrowseRestaurantsScreen extends StatefulWidget {
   @override
@@ -220,11 +222,16 @@ class CheckoutScreen extends StatefulWidget {
 }
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
-  final TextEditingController _locationController = TextEditingController();
+  // Autocomplete for location
+  final TextEditingController _locationSearchController = TextEditingController();
+  List<Map<String, String>> _locationSuggestions = [];
+  bool _isSearchingLocation = false;
+  final String _apiKey = 'AIzaSyAS10x2khf_QHLIGeyWIADDpoGLgaUkln0';
+  Map<String, dynamic>? _pickedLocationData; // To store lat/lng/address
+
   late int deliveryFee;
   late String deliveryFeeLabel;
   bool _isSaving = false;
-  Map<String, dynamic>? _pickedLocationData; // To store lat/lng/address
 
   @override
   void initState() {
@@ -232,12 +239,87 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final options = [0, 500, 1000];
     deliveryFee = options[Random().nextInt(options.length)];
     deliveryFeeLabel = deliveryFee == 0 ? 'Free' : 'UGX $deliveryFee';
+    _locationSearchController.addListener(_onLocationSearchChanged);
   }
 
   @override
   void dispose() {
-    _locationController.dispose();
+    _locationSearchController.removeListener(_onLocationSearchChanged);
+    _locationSearchController.dispose();
     super.dispose();
+  }
+
+  void _onLocationSearchChanged() async {
+    final query = _locationSearchController.text.trim();
+    if (query.isEmpty) {
+      setState(() => _locationSuggestions = []);
+      return;
+    }
+    await _fetchLocationAutocompleteSuggestions(query);
+  }
+
+  Future<void> _fetchLocationAutocompleteSuggestions(String input) async {
+    final url = Uri.parse(
+      'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${Uri.encodeComponent(input)}&key=$_apiKey&components=country:UG',
+    );
+    setState(() => _isSearchingLocation = true);
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 'OK') {
+          setState(() {
+            _locationSuggestions = List<Map<String, String>>.from(
+              (data['predictions'] as List).map((item) => {
+                'description': item['description'].toString(),
+                'place_id': item['place_id'].toString(),
+              }),
+            );
+          });
+        } else {
+          setState(() => _locationSuggestions = []);
+        }
+      } else {
+        setState(() => _locationSuggestions = []);
+      }
+    } catch (e) {
+      setState(() => _locationSuggestions = []);
+    } finally {
+      setState(() => _isSearchingLocation = false);
+    }
+  }
+
+  Future<void> _selectLocationSuggestion(Map<String, String> suggestion) async {
+    setState(() {
+      _isSearchingLocation = true;
+      _locationSuggestions = [];
+      _locationSearchController.text = suggestion['description'] ?? '';
+    });
+    final placeId = suggestion['place_id'];
+    if (placeId != null) {
+      final url = Uri.parse(
+        'https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&key=$_apiKey',
+      );
+      try {
+        final response = await http.get(url);
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data['status'] == 'OK') {
+            final loc = data['result']['geometry']['location'];
+            setState(() {
+              _pickedLocationData = {
+                'address': suggestion['description'],
+                'lat': loc['lat'],
+                'lng': loc['lng'],
+              };
+            });
+          }
+        }
+      } catch (e) {
+        // Handle error silently
+      }
+    }
+    setState(() => _isSearchingLocation = false);
   }
 
   Future<void> _openMapPicker() async {
@@ -248,7 +330,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (result != null && result is Map<String, dynamic>) {
       setState(() {
         _pickedLocationData = result;
-        _locationController.text = result['address'] ?? '';
+        _locationSearchController.text = result['address'] ?? '';
       });
     }
   }
@@ -276,11 +358,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         'deliveryFee': deliveryFee,
         'clientTimestamp': DateTime.now(),
         'serverTimestamp': FieldValue.serverTimestamp(),
-        'status': 'pending', // Ready for vendor assignment
-        'sentAt': DateTime.now(), // Add sent timestamp
+        'status': 'pending',
+        'sentAt': DateTime.now(),
         'orderSource': 'browse',
-        if (restaurantName != null) 'restaurant': restaurantName, // <-- Add top-level restaurant field
-        if (customerPhone != null) 'customerPhone': customerPhone, // <-- Add this line
+        if (restaurantName != null) 'restaurant': restaurantName,
+        if (customerPhone != null) 'customerPhone': customerPhone,
         if (_pickedLocationData != null) ...{
           'customerLocation': {
             'latitude': _pickedLocationData!['lat'],
@@ -307,29 +389,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     double grandTotal = itemsTotal + deliveryFee;
     return Scaffold(
       appBar: AppBar(title: Text('Checkout')),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Order Summary', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             SizedBox(height: 12),
-            Expanded(
-              child: ListView.builder(
-                itemCount: cart.items.length,
-                itemBuilder: (context, index) {
-                  final item = cart.items[index];
-                  final price = (item['price'] ?? 0) as num;
-                  final quantity = (item['quantity'] ?? 1) as num;
-                  return ListTile(
-                    leading: item['imageUrl'] != null && item['imageUrl'] != ''
-                        ? Image.network(item['imageUrl'], width: 40, height: 40, fit: BoxFit.cover)
-                        : Icon(Icons.fastfood, size: 32, color: Colors.grey[400]),
-                    title: Text(item['name'] ?? 'No Name'),
-                    subtitle: Text('UGX $price x $quantity = UGX ${price * quantity}'),
-                  );
-                },
-              ),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: NeverScrollableScrollPhysics(),
+              itemCount: cart.items.length,
+              itemBuilder: (context, index) {
+                final item = cart.items[index];
+                final price = (item['price'] ?? 0) as num;
+                final quantity = (item['quantity'] ?? 1) as num;
+                return ListTile(
+                  leading: item['imageUrl'] != null && item['imageUrl'] != ''
+                      ? Image.network(item['imageUrl'], width: 40, height: 40, fit: BoxFit.cover)
+                      : Icon(Icons.fastfood, size: 32, color: Colors.grey[400]),
+                  title: Text(item['name'] ?? 'No Name'),
+                  subtitle: Text('UGX $price x $quantity = UGX ${price * quantity}'),
+                );
+              },
             ),
             SizedBox(height: 8),
             Row(
@@ -340,11 +422,71 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ],
             ),
             SizedBox(height: 8),
-            TextField(
-              controller: _locationController,
-              decoration: InputDecoration(
-                labelText: 'Delivery Location',
-                border: OutlineInputBorder(),
+            // Autocomplete location field
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _locationSearchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search for delivery location...',
+                      prefixIcon: Icon(Icons.search, color: Colors.grey),
+                      suffixIcon: _isSearchingLocation
+                          ? Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          : _locationSearchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: Icon(Icons.clear, color: Colors.grey),
+                                  onPressed: () {
+                                    _locationSearchController.clear();
+                                    setState(() {
+                                      _locationSuggestions = [];
+                                      _pickedLocationData = null;
+                                    });
+                                  },
+                                )
+                              : null,
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    ),
+                  ),
+                  if (_locationSuggestions.isNotEmpty)
+                    Container(
+                      constraints: BoxConstraints(maxHeight: 200),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.vertical(bottom: Radius.circular(8)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _locationSuggestions.length,
+                        itemBuilder: (context, index) {
+                          final suggestion = _locationSuggestions[index];
+                          return ListTile(
+                            title: Text(suggestion['description'] ?? ''),
+                            onTap: () => _selectLocationSuggestion(suggestion),
+                          );
+                        },
+                      ),
+                    ),
+                ],
               ),
             ),
             SizedBox(height: 8),
@@ -371,9 +513,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ? Center(child: CircularProgressIndicator())
                   : ElevatedButton(
                       onPressed: () async {
-                        if (_locationController.text.trim().isEmpty) {
+                        if (_locationSearchController.text.trim().isEmpty || _pickedLocationData == null) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Please enter a delivery location.')),
+                            SnackBar(content: Text('Please select a delivery location.')),
                           );
                           return;
                         }
@@ -381,46 +523,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         try {
                           await _saveOrderToFirestore(
                             cart.items,
-                            _locationController.text.trim(),
+                            _locationSearchController.text.trim(),
                             itemsTotal,
                             deliveryFee,
                           );
                           setState(() => _isSaving = false);
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: Text('Order Confirmed'),
-                              content: Text('Your order has been sent to the restaurant!'),
-                              actions: [
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.pop(context); // Close dialog
-                                    Navigator.pop(context); // Back to cart
-                                    Navigator.pop(context); // Back to menu
-                                    cart.clear();
-                                  },
-                                  child: Text('OK'),
-                                ),
-                              ],
-                            ),
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Order placed successfully!')),
                           );
+                          Navigator.pop(context);
                         } catch (e) {
                           setState(() => _isSaving = false);
-                          print('Order placement failed: $e');
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Failed to place order. Please try again.'),
-                              backgroundColor: Colors.red,
-                            ),
+                            SnackBar(content: Text('Failed to place order.')),
                           );
                         }
                       },
-                      child: Text('Confirm Order'),
-                      style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        textStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        backgroundColor: Theme.of(context).primaryColor,
-                      ),
+                      child: Text('Place Order'),
                     ),
             ),
           ],
