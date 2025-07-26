@@ -78,7 +78,43 @@ class _OrdersPageState extends State<OrdersPage> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Order marked as "$newStatus"!')),
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              newStatus == 'Completed'
+                  ? Icons.check_circle
+                  : newStatus == 'Cancelled'
+                  ? Icons.cancel
+                  : newStatus == 'Start Preparing'
+                  ? Icons.access_time
+                  : Icons.info,
+              color: Colors.white,
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Order marked as "$newStatus"!',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: newStatus == 'Completed'
+            ? Colors.green
+            : newStatus == 'Cancelled'
+            ? Colors.red
+            : newStatus == 'Start Preparing'
+            ? Colors.orange
+            : Colors.blueAccent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        margin: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        elevation: 8,
+        duration: Duration(seconds: 2),
+      ),
     );
 
     setState(() {});
@@ -185,7 +221,7 @@ class _OrdersPageState extends State<OrdersPage> {
         child: StreamBuilder<QuerySnapshot>(
           stream: _ordersStream,
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
+            if (!snapshot.hasData) {
               return Center(child: CircularProgressIndicator());
             }
 
@@ -207,8 +243,17 @@ class _OrdersPageState extends State<OrdersPage> {
                 isDue = scheduledSendTime.toDate().isBefore(now) || scheduledSendTime.toDate().isAtSameMomentAs(now);
               }
 
-              // Show all orders that are in the active flow: pending, sent, start preparing, completed
-              if (((status == 'pending' && isDue) || status == 'sent' || status == 'start preparing' || status == 'completed')) {
+              // Only show:
+              // - sent
+              // - pending (no scheduledSendTime or scheduledSendTime is due/now)
+              // - cancelled
+              if (
+              status == 'sent' ||
+                  (status == 'pending' && (scheduledSendTime == null || isDue)) ||
+                  status == 'cancelled' ||
+                  status == 'start preparing' ||
+                  status == 'completed'
+              ) {
                 // If no search query, include all valid orders
                 if (_searchQuery.isEmpty) return true;
 
@@ -229,8 +274,8 @@ class _OrdersPageState extends State<OrdersPage> {
                 final timestamp = data['clientTimestamp'] ?? data['orderDate'] ?? data['orderTime'] ?? data['sentAt'];
                 final date = (timestamp is Timestamp)
                     ? DateFormat('yyyy-MM-dd')
-                        .format(timestamp.toDate().toLocal())
-                        .toLowerCase()
+                    .format(timestamp.toDate().toLocal())
+                    .toLowerCase()
                     : '';
 
                 return food.contains(_searchQuery) ||
@@ -273,7 +318,7 @@ class _OrdersPageState extends State<OrdersPage> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Orders", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                Text("Orders", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 25)),
                 SizedBox(height: 12),
                 TextField(
                   controller: _searchController,
@@ -292,7 +337,7 @@ class _OrdersPageState extends State<OrdersPage> {
                   },
                 ),
                 SizedBox(height: 12),
-                Text("Track and manage all your restaurant orders here!\n", style: TextStyle(fontSize: 16)),
+                Text("Track and manage all your restaurant orders here!\n", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 Expanded(
                   child: ListView.builder(
                     itemCount: validOrders.length,
@@ -303,10 +348,13 @@ class _OrdersPageState extends State<OrdersPage> {
                       final userId = orderData['userId'] ?? 'Unknown';
                       final customerName = _userIdToName[userId] ?? 'Unknown Customer';
                       final displayOrderId = '#ORD${(totalOrders - index).toString().padLeft(3, '0')}';
-                      final timestamp = orderData['clientTimestamp'] ?? orderData['orderDate'] ?? orderData['orderTime'] ?? orderData['sentAt'];
-                      final orderTime = (timestamp != null && timestamp is Timestamp)
-                          ? DateFormat('yyyy-MM-dd – kk:mm').format(timestamp.toDate())
-                          : 'Unknown time';
+                      final scheduledTime = orderData['scheduledSendTime'];
+                      final timestamp = orderData['clientTimestamp'];
+                      final orderTime = (scheduledTime != null && scheduledTime is Timestamp)
+                          ? DateFormat('yyyy-MM-dd – kk:mm').format(scheduledTime.toDate())
+                          : (timestamp != null && timestamp is Timestamp)
+                              ? DateFormat('yyyy-MM-dd – kk:mm').format(timestamp.toDate())
+                              : 'Unknown time';
 
                       String foodItem = '';
                       if (orderData.containsKey('food')) {
@@ -432,7 +480,7 @@ class _OrdersPageState extends State<OrdersPage> {
 //order details page
 
 
-class OrderDetailsPage extends StatelessWidget {
+class OrderDetailsPage extends StatefulWidget {
   final Map<String, dynamic> orderData;
   final String customerName;
   final String orderId;
@@ -443,46 +491,84 @@ class OrderDetailsPage extends StatelessWidget {
     required this.orderId,
   });
 
-  // Helper to clean any value and avoid showing "null" or empty text
+  @override
+  State<OrderDetailsPage> createState() => _OrderDetailsPageState();
+}
+
+class _OrderDetailsPageState extends State<OrderDetailsPage> {
+  String? _contactInfo;
+  bool _loadingContact = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchContactInfoIfNeeded();
+  }
+
+  void _fetchContactInfoIfNeeded() async {
+    final orderData = widget.orderData;
+    String? contact = orderData['contactInfo'] ?? orderData['phone'] ?? (orderData['delivery'] is Map ? orderData['delivery']['phone'] : null);
+    if (contact == null || contact.toString().trim().isEmpty) {
+      final userId = orderData['userId'];
+      if (userId != null) {
+        setState(() { _loadingContact = true; });
+        try {
+          final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+          final userPhone = userDoc.data()?['phone'];
+          if (userPhone != null && userPhone.toString().trim().isNotEmpty) {
+            setState(() { _contactInfo = userPhone.toString(); });
+          }
+        } catch (e) {
+          // Optionally handle error
+        }
+        setState(() { _loadingContact = false; });
+      }
+    } else {
+      setState(() { _contactInfo = contact.toString(); });
+    }
+  }
+
   String cleanText(dynamic value, {String fallback = 'N/A'}) {
     if (value == null) return fallback;
     final text = value.toString().trim();
     return text.isEmpty ? fallback : text;
   }
 
-  // Extract food description from different structures
-  String getFoodDescription(dynamic foodData) {
-    if (foodData == null) return 'N/A';
-
-    if (foodData is List) {
-      return foodData.map((item) {
-        if (item is String) return item;
-        if (item is Map && item.containsKey('name')) return item['name'].toString();
-        return item.toString();
-      }).join(', ');
+  String getFoodDescription(dynamic foodData, dynamic itemsData) {
+    // For automated orders
+    if (foodData != null && foodData.toString().trim().isNotEmpty) {
+      return foodData.toString();
     }
-
-    if (foodData is Map) {
-      return foodData.values.map((v) => v.toString()).join(', ');
+    // For normal orders with items array
+    if (itemsData is List && itemsData.isNotEmpty) {
+      return itemsData
+          .map((item) =>
+              (item is Map && item['name'] != null) ? item['name'].toString() : '')
+          .where((name) => name.isNotEmpty)
+          .join(', ');
     }
-
-    return foodData.toString();
+    return 'N/A';
   }
 
   @override
   Widget build(BuildContext context) {
+    final orderData = widget.orderData;
     final formatter = DateFormat('yyyy-MM-dd – hh:mm a');
+    final isAutomated = orderData['orderSource'] == 'schedule';
+    final scheduledTime = orderData['scheduledSendTime'];
     final timestamp = orderData['clientTimestamp'];
-    final orderTime = (timestamp != null)
-        ? formatter.format(timestamp.toDate())
-        : 'Unknown';
+    final orderTime = (isAutomated && scheduledTime != null && scheduledTime is Timestamp)
+        ? 'Scheduled: ' + formatter.format(scheduledTime.toDate())
+        : (timestamp != null && timestamp is Timestamp)
+            ? formatter.format(timestamp.toDate())
+            : 'Unknown';
 
     final deliveryMan = orderData['deliveryMan'];
     final deliveryInfo = (deliveryMan != null && deliveryMan.toString().trim().isNotEmpty)
         ? "Assigned to: $deliveryMan"
         : "No delivery person assigned yet";
 
-    final foodDescription = getFoodDescription(orderData['food']);
+    final foodDescription = getFoodDescription(orderData['food'], orderData['items']);
 
     return Scaffold(
       appBar: AppBar(
@@ -500,10 +586,10 @@ class OrderDetailsPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Order ID: $orderId",
+                  Text("Order ID: ${widget.orderId}",
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
                   SizedBox(height: 8),
-                  Text("Customer: $customerName",
+                  Text("Customer: ${widget.customerName}",
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   SizedBox(height: 8),
                   Divider(),
@@ -517,25 +603,30 @@ class OrderDetailsPage extends StatelessWidget {
                     title: Text("Price"),
                     subtitle: Text("Shs. ${cleanText(orderData['foodPrice'])}"),
                   ),
-                  ListTile(
-                    leading: Icon(Icons.category),
-                    title: Text("Meal Type"),
-                    subtitle: Text(cleanText(orderData['mealType'])),
-                  ),
-                  ListTile(
-                    leading: Icon(Icons.payment),
-                    title: Text("Payment Method"),
-                    subtitle: Text(cleanText(orderData['paymentMethod'])),
-                  ),
+                  if (isAutomated)
+                    ListTile(
+                      leading: Icon(Icons.category),
+                      title: Text("Meal Type"),
+                      subtitle: Text(cleanText(orderData['mealType'])),
+                    ),
                   ListTile(
                     leading: Icon(Icons.location_on),
                     title: Text("Delivery Address"),
-                    subtitle: Text(cleanText(orderData['deliveryAddress'])),
+                    subtitle: Text(
+                        cleanText(
+                            orderData['deliveryAddress'] ??
+                                orderData['address'] ??
+                                orderData['location'] ??
+                                (orderData['delivery'] is Map ? orderData['delivery']['address'] : null)
+                        )
+                    ),
                   ),
                   ListTile(
                     leading: Icon(Icons.phone),
                     title: Text("Contact Info"),
-                    subtitle: Text(cleanText(orderData['contactInfo'])),
+                    subtitle: _loadingContact
+                        ? Text("Loading...")
+                        : Text(cleanText(_contactInfo)),
                   ),
                   ListTile(
                     leading: Icon(Icons.notes),
