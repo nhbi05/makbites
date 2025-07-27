@@ -75,11 +75,44 @@ class _CheckoutPageState extends State<CheckoutPage> {
           customerPhone = userDoc.data()?['phone'] ?? '';
           print('Fetched phone: $customerPhone'); // <-- And this
         }
+        // Get restaurant ID from restaurant name
+        String? restaurantId;
+        if (order['restaurant'] != null) {
+          final restaurantSnapshot = await FirebaseFirestore.instance
+              .collection('restaurants')
+              .where('name', isEqualTo: order['restaurant'])
+              .limit(1)
+              .get();
+          
+          if (restaurantSnapshot.docs.isNotEmpty) {
+            restaurantId = restaurantSnapshot.docs.first.id;
+          }
+        }
+
+        // Create items array for the order
+        List<Map<String, dynamic>> items = [];
+        if (order['items'] != null) {
+          // If items are already in the order, use them
+          items = List<Map<String, dynamic>>.from(order['items']);
+        } else {
+          // Create a single item from the order data
+          items = [{
+            'name': order['food'] ?? 'Food Item',
+            'price': order['foodPrice'] ?? 0,
+            'quantity': 1,
+            'restaurant': order['restaurant'],
+            'imageUrl': order['imageUrl'],
+            'description': order['description'],
+          }];
+        }
+
         await FirebaseFirestore.instance.collection('orders').add({
           'userId': user.uid,
           'mealType': order['mealType'],
           'food': order['food'],
           'restaurant': order['restaurant'],
+          'restaurantId': restaurantId, // Add restaurant ID for security rules
+          'items': items, // Save the full list of ordered items
           'foodPrice': order['foodPrice'],
           'location': order['location'],
           'locationLat': order['locationLat'],
@@ -91,6 +124,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'status': status, // Set to 'sent' for browse, 'pending' for schedule
           'orderSource': widget.orderSource,
           'scheduledSendTime': scheduledSendTime, // Add this field
+          'scheduledTime': scheduledSendTime != null ? Timestamp.fromDate(scheduledSendTime) : null, // <-- Add this line
           'customerLocation': {
             'latitude': order['locationLat'],
             'longitude': order['locationLng'],

@@ -462,9 +462,22 @@ class _VendorHomePageState extends State<VendorHomePage> {
           }
         }
 
+        // Display items from the items field if available, otherwise fallback to food field
+        String foodDisplay;
+        if (order['items'] != null && order['items'] is List) {
+          final items = List<Map<String, dynamic>>.from(order['items']);
+          if (items.isNotEmpty) {
+            foodDisplay = items.map((item) => '${item['name'] ?? 'Unknown'} x${item['quantity'] ?? 1}').join(', ');
+          } else {
+            foodDisplay = order['food'] ?? 'Food Item';
+          }
+        } else {
+          foodDisplay = order['food'] ?? 'Food Item';
+        }
+
         return ListTile(
           leading: const Icon(Icons.receipt_long, color: AppColors.primary),
-          title: Text(order['food'] ?? 'Food Item'),
+          title: Text(foodDisplay),
           subtitle: Text("UGX $priceDisplay"),
           trailing: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

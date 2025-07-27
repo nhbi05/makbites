@@ -1,0 +1,149 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // User profiles - allow authenticated users to read for name lookup
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null; // Allow reading any user for name lookup
+      allow list: if request.auth != null;
+    }
+    
+    // Restaurants - everyone can read, only restaurant owners can write
+    match /restaurants/{restaurantId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == restaurantId;
+      allow list: if request.auth != null;
+    }
+    
+    // Menu items as subcollection under restaurants
+    match /restaurants/{restaurantId}/menus/{itemId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == restaurantId;
+      allow list: if request.auth != null;
+    }
+    
+    // Restaurant menu items subcollection
+    match /restaurants/{restaurantId}/items/{itemId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == restaurantId;
+      allow list: if request.auth != null;
+    }
+    
+    // Alternative: Flat menu structure (choose one approach)
+    match /menus/{itemId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        request.auth.uid == resource.data.restaurantId;
+      allow list: if request.auth != null;
+    }
+    
+    // Orders - allow authenticated users to read and write
+    match /orders/{orderId} {
+      allow read, write: if request.auth != null;
+      allow create: if request.auth != null;
+      allow list: if request.auth != null;
+    }
+    
+    // Categories - everyone can read, anyone can add (simplified)
+    match /categories/{categoryId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+      allow list: if request.auth != null;
+    }
+    
+    // Events - users can only access their own events
+    match /events/{eventId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+      allow list: if request.auth != null;
+    }
+    
+    // Weekly schedules - users can only access their own schedules
+    match /weekly_schedules/{scheduleId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+      allow list: if request.auth != null;
+    }
+    
+    // Automated orders - users can only access their own orders
+    match /automated_orders/{orderId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+      allow list: if request.auth != null;
+    }
+    
+    // Deliveries - allow authenticated users to read and write
+    match /deliveries/{deliveryId} {
+      allow read, write: if request.auth != null;
+      allow create: if request.auth != null;
+      allow list: if request.auth != null;
+    }
+    
+    // Delivery tracking - allow authenticated users to read and write
+    match /delivery_tracking/{trackingId} {
+      allow read, write: if request.auth != null;
+      allow create: if request.auth != null;
+      allow list: if request.auth != null;
+    }
+    
+    // Notifications - allow authenticated users to read and write
+    match /notifications/{notificationId} {
+      allow read, write: if request.auth != null;
+      allow create: if request.auth != null;
+      allow list: if request.auth != null;
+    }
+    
+    // Restaurant orders - allow authenticated users to read and write
+    match /restaurant_orders/{orderId} {
+      allow read, write: if request.auth != null;
+      allow create: if request.auth != null;
+      allow list: if request.auth != null;
+    }
+    
+    // Delivery riders - allow authenticated users to read and write
+    match /delivery_riders/{riderId} {
+      allow read, write: if request.auth != null;
+      allow create: if request.auth != null;
+      allow list: if request.auth != null;
+    }
+    
+    // Drivers - allow authenticated users to read and write
+    match /drivers/{driverId} {
+      allow read, write: if request.auth != null;
+      allow create: if request.auth != null;
+      allow list: if request.auth != null;
+    }
+    
+    // Driver statistics - allow authenticated users to read and write
+    match /driver_statistics/{statId} {
+      allow read, write: if request.auth != null;
+      allow create: if request.auth != null;
+      allow list: if request.auth != null;
+    }
+    
+    // Meal preferences - users can access their own preferences
+    match /meal_preferences/{userId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == userId;
+      allow create: if request.auth != null && 
+        request.auth.uid == userId;
+      allow list: if request.auth != null;
+    }
+    
+    // User events - users can access their own events
+    match /user_events/{eventId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+      allow list: if request.auth != null;
+    }
+  }
+} 

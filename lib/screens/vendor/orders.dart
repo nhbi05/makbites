@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'dart:async';
 import 'package:makbites/screens/vendor/set_preparation_time.dart';
+import 'package:makbites/services/push_notification_service.dart';
+import 'package:makbites/models/automation_models.dart';
 
 class OrdersPage extends StatefulWidget {
   final String vendorRestaurantId;
@@ -16,15 +19,34 @@ class _OrdersPageState extends State<OrdersPage> {
   Map<String, String> _userIdToName = {};
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  List<Map<String, dynamic>> _combinedOrders = [];
+  Timer? _refreshTimer;
+  StreamSubscription? _ordersSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadUsers();
+    _loadOrders();
+    _startRefreshTimer();
     _searchController.addListener(() {
       setState(() {
         _searchQuery = _searchController.text.trim().toLowerCase();
       });
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    _ordersSubscription?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _startRefreshTimer() {
+    _refreshTimer = Timer.periodic(Duration(minutes: 1), (timer) {
+      _loadOrders();
     });
   }
 
@@ -45,18 +67,134 @@ class _OrdersPageState extends State<OrdersPage> {
     }
   }
 
-  Future<void> _loadUsers() async {
-    final userSnapshot = await FirebaseFirestore.instance.collection('users').get();
-    final usersMap = <String, String>{};
-    for (var doc in userSnapshot.docs) {
-      final data = doc.data();
-      if (data.containsKey('uid') && data.containsKey('name')) {
-        usersMap[data['uid']] = data['name'];
+  // Load orders using simple approach - no complex queries
+  void _loadOrders() async {
+    try {
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day);
+      final endOfDay = startOfDay.add(Duration(days: 1));
+      
+      List<Map<String, dynamic>> allOrders = [];
+      
+      // 1. Fetch regular orders for today
+      final regularOrdersSnapshot = await FirebaseFirestore.instance
+          .collection('orders')
+          .where('restaurant', isEqualTo: widget.vendorRestaurantId)
+          .get();
+      
+      for (var doc in regularOrdersSnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final timestamp = data['clientTimestamp'];
+        
+        // Skip scheduled orders here - we'll process them separately
+        if (data['orderSource'] == 'schedule') {
+          continue;
+        }
+        
+        if (timestamp != null && timestamp is Timestamp) {
+          final orderDate = timestamp.toDate();
+          // Only include today's orders
+          if (orderDate.isAfter(startOfDay) && orderDate.isBefore(endOfDay)) {
+            data['id'] = doc.id;
+            data['isScheduled'] = false;
+            allOrders.add(data);
+          }
+        }
       }
+      
+      // 2. Look for scheduled orders in the regular orders collection
+      // These are orders with orderSource: "schedule" and scheduledTime field
+      for (var doc in regularOrdersSnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        
+        // Check if this is a scheduled order
+        if (data['orderSource'] == 'schedule' && data['scheduledTime'] != null) {
+          final scheduledTimestamp = data['scheduledTime'];
+          if (scheduledTimestamp is Timestamp) {
+            final scheduledTime = scheduledTimestamp.toDate();
+            final minutesUntilDelivery = scheduledTime.difference(now).inMinutes;
+            
+            print('Found scheduled order: ${doc.id}, minutes until delivery: $minutesUntilDelivery, status: ${data['status']}');
+            
+            // Show if: scheduled time is within next 30 minutes OR up to 60 minutes past scheduled time AND status is pending
+            if (minutesUntilDelivery <= 30 && minutesUntilDelivery >= -60 && 
+                data['status'] == 'pending') {
+              
+              print('✅ Showing scheduled order ${doc.id}');
+              
+              // Add to orders list but mark as scheduled
+              final scheduledOrderData = Map<String, dynamic>.from(data);
+              scheduledOrderData['id'] = doc.id;
+              scheduledOrderData['isScheduled'] = true;
+              scheduledOrderData['notes'] = 'Scheduled order - delivers at ${DateFormat('HH:mm').format(scheduledTime)}';
+              
+              allOrders.add(scheduledOrderData);
+            } else {
+              print('❌ Not showing scheduled order ${doc.id} (outside window or wrong status)');
+            }
+          }
+        }
+      }
+      
+      // 3. Sort combined orders
+      allOrders.sort((a, b) {
+        final aTime = a['isScheduled'] == true 
+            ? (a['scheduledTime'] as Timestamp).toDate()
+            : (a['clientTimestamp'] as Timestamp).toDate();
+        final bTime = b['isScheduled'] == true 
+            ? (b['scheduledTime'] as Timestamp).toDate()
+            : (b['clientTimestamp'] as Timestamp).toDate();
+        return bTime.compareTo(aTime);
+      });
+      
+      setState(() {
+        _combinedOrders = allOrders;
+      });
+      
+    } catch (e) {
+      print('Error loading orders: $e');
     }
-    setState(() {
-      _userIdToName = usersMap;
-    });
+  }
+
+  Future<void> _loadUsers() async {
+    try {
+      final userSnapshot = await FirebaseFirestore.instance.collection('users').get();
+      final usersMap = <String, String>{};
+      for (var doc in userSnapshot.docs) {
+        final data = doc.data();
+        if (data.containsKey('uid') && data.containsKey('name')) {
+          usersMap[data['uid']] = data['name'];
+        }
+      }
+      print('Loaded ${usersMap.length} users: $usersMap'); // Debug info
+      setState(() {
+        _userIdToName = usersMap;
+      });
+    } catch (e) {
+      print('Error loading users: $e');
+    }
+  }
+
+  // Method to fetch missing user names
+  Future<void> _fetchMissingUserNames(List<String> userIds) async {
+    final missingUserIds = userIds.where((id) => !_userIdToName.containsKey(id)).toList();
+    if (missingUserIds.isEmpty) return;
+
+    try {
+      for (final userId in missingUserIds) {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .get();
+        if (userDoc.exists) {
+          final userName = userDoc.data()?['name'] ?? 'Unknown Customer';
+          _userIdToName[userId] = userName;
+        }
+      }
+      setState(() {}); // Trigger rebuild with updated names
+    } catch (e) {
+      print('Error fetching missing user names: $e');
+    }
   }
 
   void updateOrderStatus(String orderId, String currentStatus) async {
@@ -124,90 +262,85 @@ class _OrdersPageState extends State<OrdersPage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Test order created')));
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: _createTestOrder,
-        child: Icon(Icons.add),
-        tooltip: 'Create Test Order',
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Search Bar
-            TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search by name, food, date...',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-              ),
-            ),
-            SizedBox(height: 8),
-            Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('orders')
-                    .where('restaurant', isEqualTo: widget.vendorRestaurantId)
-                    .orderBy('clientTimestamp', descending: false)
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Center(child: CircularProgressIndicator());
-                  }
+  Widget _buildCombinedOrdersList(List<Map<String, dynamic>> orders) {
+    final validOrders = orders.where((orderData) {
+      return orderData.containsKey('status') && orderData['status'] != null && orderData['status'].toString().trim().isNotEmpty;
+    }).toList();
 
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    return Center(child: Text('No orders found for this restaurant.'));
-                  }
+    // Fetch missing user names for the orders
+    final userIds = validOrders.map((orderData) {
+      return orderData['userId'] ?? '';
+    }).where((id) => id.isNotEmpty).cast<String>().toList();
+    _fetchMissingUserNames(userIds);
 
-                  final allDocs = snapshot.data!.docs;
+    // Filter by search query
+    final filteredOrders = _searchQuery.isEmpty
+        ? validOrders
+        : validOrders.where((orderData) {
+            final userId = orderData['userId'] ?? '';
+            final customerName = _userIdToName[userId]?.toLowerCase() ?? '';
+            final food = (orderData['food'] ?? '').toString().toLowerCase();
+            final date = (orderData['clientTimestamp'] != null && orderData['clientTimestamp'] is Timestamp)
+                ? (orderData['clientTimestamp'] as Timestamp).toDate().toString().toLowerCase()
+                : '';
+            return customerName.contains(_searchQuery) ||
+                food.contains(_searchQuery) ||
+                date.contains(_searchQuery);
+          }).toList();
 
-                  final validOrders = allDocs.where((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    return data.containsKey('status') && data['status'] != null && data['status'].toString().trim().isNotEmpty;
-                  }).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Orders", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+        Expanded(
+          child: ListView.builder(
+            itemCount: filteredOrders.length,
+            itemBuilder: (context, index) {
+              final orderData = filteredOrders[index];
+              final orderId = orderData['id'];
+              final userId = orderData['userId'] ?? 'Unknown';
+              final customerName = _userIdToName[userId] ?? 'Unknown Customer';
+              final displayOrderId = '#ORD${(index + 1).toString().padLeft(3, '0')}';
+              final timestamp = orderData['clientTimestamp'];
+              final isScheduled = orderData['isScheduled'] ?? false;
+              
+              String orderTime;
+              String scheduledInfo = '';
+              
+              if (isScheduled) {
+                final scheduledTimestamp = orderData['scheduledTime'];
+                final scheduledTime = (scheduledTimestamp != null && scheduledTimestamp is Timestamp)
+                    ? scheduledTimestamp.toDate()
+                    : DateTime.now();
+                orderTime = 'Scheduled: ${DateFormat('HH:mm').format(scheduledTime)}';
+                
+                final now = DateTime.now();
+                final minutesUntilDelivery = scheduledTime.difference(now).inMinutes;
+                if (minutesUntilDelivery > 0) {
+                  scheduledInfo = 'Delivers in $minutesUntilDelivery minutes';
+                } else {
+                  scheduledInfo = 'Delivery time reached';
+                }
+              } else {
+                orderTime = (timestamp != null && timestamp is Timestamp)
+                    ? DateFormat('yyyy-MM-dd – kk:mm').format(timestamp.toDate())
+                    : 'Unknown time';
+              }
 
-                  // Filter by search query
-                  final filteredOrders = _searchQuery.isEmpty
-                      ? validOrders
-                      : validOrders.where((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final userId = data['userId'] ?? '';
-                          final customerName = _userIdToName[userId]?.toLowerCase() ?? '';
-                          final food = (data['food'] ?? '').toString().toLowerCase();
-                          final date = (data['clientTimestamp'] != null && data['clientTimestamp'] is Timestamp)
-                              ? (data['clientTimestamp'] as Timestamp).toDate().toString().toLowerCase()
-                              : '';
-                          return customerName.contains(_searchQuery) ||
-                              food.contains(_searchQuery) ||
-                              date.contains(_searchQuery);
-                        }).toList();
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("Orders", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-                      Expanded(
-                        child: ListView.builder(
-                          itemCount: filteredOrders.length,
-                          itemBuilder: (context, index) {
-                            final orderDoc = filteredOrders[index];
-                            final orderData = orderDoc.data() as Map<String, dynamic>;
-
-                            final orderId = orderDoc.id;
-                            final userId = orderData['userId'] ?? 'Unknown';
-                            final customerName = _userIdToName[userId] ?? userId;
-                            final displayOrderId = '#ORD${(index + 1).toString().padLeft(3, '0')}';
-                            final timestamp = orderData['clientTimestamp'];
-                            final orderTime = (timestamp != null && timestamp is Timestamp)
-                                ? DateFormat('yyyy-MM-dd – kk:mm').format(timestamp.toDate())
-                                : 'Unknown time';
-
-                            final foodItem = orderData['food'] ?? 'No items';
+                            // Display items from the items field if available, otherwise fallback to food field
+                            String foodItem;
+                            List<Map<String, dynamic>> items = [];
+                            if (orderData['items'] != null && orderData['items'] is List) {
+                              items = List<Map<String, dynamic>>.from(orderData['items']);
+                              if (items.isNotEmpty) {
+                                foodItem = items.map((item) => '${item['name'] ?? 'Unknown'} x${item['quantity'] ?? 1}').join(', ');
+                              } else {
+                                foodItem = orderData['food'] ?? 'No items';
+                              }
+                            } else {
+                              foodItem = orderData['food'] ?? 'No items';
+                            }
+                            
                             final status = orderData['status'].toString().trim();
                             final normalizedStatus = status.toLowerCase();
                             final price = orderData['foodPrice'] ?? 0;
@@ -232,7 +365,29 @@ class _OrdersPageState extends State<OrdersPage> {
                                       Row(
                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
-                                          Text(customerName, style: TextStyle(fontWeight: FontWeight.bold)),
+                                          Expanded(
+                                            child: Row(
+                                              children: [
+                                                if (isScheduled) ...[
+                                                  Container(
+                                                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.purple,
+                                                      borderRadius: BorderRadius.circular(4),
+                                                    ),
+                                                    child: Text(
+                                                      'SCHEDULED',
+                                                      style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                                    ),
+                                                  ),
+                                                  SizedBox(width: 8),
+                                                ],
+                                                Expanded(
+                                                  child: Text(customerName, style: TextStyle(fontWeight: FontWeight.bold)),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
                                           if (normalizedStatus == "pending")
                                             GestureDetector(
                                               onTap: () => _showCancelDialog(context, orderId),
@@ -244,6 +399,21 @@ class _OrdersPageState extends State<OrdersPage> {
                                         ],
                                       ),
                                       Text("$displayOrderId • $orderTime"),
+                                      if (isScheduled && scheduledInfo.isNotEmpty) ...[
+                                        SizedBox(height: 2),
+                                        Container(
+                                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.purple.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(color: Colors.purple.withOpacity(0.3)),
+                                          ),
+                                          child: Text(
+                                            scheduledInfo,
+                                            style: TextStyle(color: Colors.purple[700], fontWeight: FontWeight.w500, fontSize: 12),
+                                          ),
+                                        ),
+                                      ],
                                       SizedBox(height: 4),
                                       Text("Food: $foodItem"),
                                       Text("Meal Type: $mealType"),
@@ -298,8 +468,66 @@ class _OrdersPageState extends State<OrdersPage> {
                       ),
                     ],
                   );
-                },
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Calculate today's range
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final endOfDay = startOfDay.add(Duration(days: 1));
+    return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        onPressed: _createTestOrder,
+        child: Icon(Icons.add),
+        tooltip: 'Create Test Order',
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Search Bar
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search by name, food, date...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
               ),
+            ),
+            SizedBox(height: 8),
+            // Refresh button
+            Row(
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _loadOrders,
+                  icon: Icon(Icons.refresh),
+                  label: Text('Refresh'),
+                ),
+                SizedBox(width: 8),
+                Text('${_combinedOrders.length} orders', style: TextStyle(color: Colors.grey[600])),
+              ],
+            ),
+            SizedBox(height: 8),
+            Expanded(
+              child: _combinedOrders.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.inbox, size: 64, color: Colors.grey),
+                          SizedBox(height: 16),
+                          Text('No orders found'),
+                          SizedBox(height: 8),
+                          Text('Regular orders and scheduled orders (30 min before delivery) will appear here',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.grey[600])),
+                        ],
+                      ),
+                    )
+                  : _buildCombinedOrdersList(_combinedOrders),
             ),
           ],
         ),

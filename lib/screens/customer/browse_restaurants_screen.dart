@@ -350,6 +350,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       if (items.isNotEmpty && items[0].containsKey('restaurant')) {
         restaurantName = items[0]['restaurant'];
       }
+      
+      // Get restaurant ID from restaurant name
+      String? restaurantId;
+      if (restaurantName != null) {
+        final restaurantSnapshot = await FirebaseFirestore.instance
+            .collection('restaurants')
+            .where('name', isEqualTo: restaurantName)
+            .limit(1)
+            .get();
+        
+        if (restaurantSnapshot.docs.isNotEmpty) {
+          restaurantId = restaurantSnapshot.docs.first.id;
+        }
+      }
+      
       await FirebaseFirestore.instance.collection('orders').add({
         'userId': user.uid,
         'items': items,
@@ -362,6 +377,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         'sentAt': DateTime.now(),
         'orderSource': 'browse',
         if (restaurantName != null) 'restaurant': restaurantName,
+        if (restaurantId != null) 'restaurantId': restaurantId,
         if (customerPhone != null) 'customerPhone': customerPhone,
         if (_pickedLocationData != null) ...{
           'customerLocation': {

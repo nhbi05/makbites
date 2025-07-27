@@ -40,21 +40,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Future<void> _fetchRestaurants() async {
     try {
       final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where('role', isEqualTo: 'restaurant')
+          .collection('restaurants')
           .get();
           
       setState(() {
         _restaurants = snapshot.docs.map((doc) {
           return {
             'id': doc.id,
-            'name': doc.data()['businessName'] ?? doc.data()['name'] ?? 'Unnamed Restaurant'
+            'name': doc.data()['name'] ?? doc.data()['businessName'] ?? 'Unnamed Restaurant'
           };
         }).toList();
       });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load restaurant: ${e.toString()}')),
+        SnackBar(content: Text('Failed to load restaurants: ${e.toString()}')),
       );
     }
   }

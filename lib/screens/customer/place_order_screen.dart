@@ -737,6 +737,19 @@ class _PlaceOrderScreenState extends State<PlaceOrderScreen> {
       _locationSearchController.clear();
       _locationSuggestions = [];
     });
+    // Show SnackBar notification
+    if (_selectedFoodSimple != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$_selectedFoodSimple added to cart'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.only(bottom: 80, right: 20, left: 20),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
   }
 
   int? _getFoodPrice(String? food) {

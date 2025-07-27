@@ -179,7 +179,6 @@ class _VendorHomePageState extends State<VendorHomePage> {
           .collection('orders')
           .where('restaurant', isEqualTo: _restaurantId)
           .orderBy('clientTimestamp', descending: true)
-          .limit(5)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -191,9 +190,24 @@ class _VendorHomePageState extends State<VendorHomePage> {
             child: Text('No recent orders found.', style: AppTextStyles.body),
           );
         }
-        final orders = snapshot.data!.docs;
+        final now = DateTime.now();
+        // Filter out orders with scheduledSendTime in the future
+        final filtered = snapshot.data!.docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final scheduledSendTime = data['scheduledSendTime'];
+          if (scheduledSendTime != null && scheduledSendTime is Timestamp) {
+            return scheduledSendTime.toDate().isBefore(now) || scheduledSendTime.toDate().isAtSameMomentAs(now);
+          }
+          return true;
+        }).take(5).toList();
+        if (filtered.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Text('No recent orders found.', style: AppTextStyles.body),
+          );
+        }
         return Column(
-          children: orders.map((doc) {
+          children: filtered.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
             final meal = data['food'] ?? 'Unknown';
             final userId = data['userId'] ?? 'Unknown';
