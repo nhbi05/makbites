@@ -339,17 +339,10 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
             )),
             SizedBox(width: 12),
             Expanded(child: _buildQuickAction(
-              "Multi\nDelivery",
-              Icons.alt_route,
-              AppColors.primary,
-              _viewMultiDeliveryMap,
-            )),
-            SizedBox(width: 12),
-            Expanded(child: _buildQuickAction(
               "Delivery\nHistory",
               Icons.history,
               AppColors.success,
-              () => Navigator.pushNamed(context, "/deliveries"),
+              () => Navigator.pushNamed(context, AppRoutes.deliveryHistory),
             )),
           ],
         ),
@@ -365,18 +358,6 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
         backgroundColor: AppColors.primary,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: Icon(Icons.notifications_outlined, color: Colors.white),
-            onPressed: () {
-              Navigator.pushNamed(context, "/notifications");
-            },
-          ),
-          IconButton(
-            icon: Icon(Icons.help_outline, color: Colors.white),
-            onPressed: () {
-              Navigator.pushNamed(context, "/help");
-            },
-          ),
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert, color: Colors.white),
             onSelected: (value) {
@@ -384,36 +365,10 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
                 case "logout":
                   _logout(context);
                   break;
-                case "settings":
-                  Navigator.pushNamed(context, "/settings");
-                  break;
-                case "support":
-                  Navigator.pushNamed(context, "/support");
-                  break;
               }
             },
             itemBuilder: (BuildContext context) {
               return [
-                PopupMenuItem<String>(
-                  value: "settings",
-                  child: Row(
-                    children: [
-                      Icon(Icons.settings, color: Colors.grey),
-                      SizedBox(width: 8),
-                      Text("Settings"),
-                    ],
-                  ),
-                ),
-                PopupMenuItem<String>(
-                  value: "support",
-                  child: Row(
-                    children: [
-                      Icon(Icons.support_agent, color: Colors.grey),
-                      SizedBox(width: 8),
-                      Text("Support"),
-                    ],
-                  ),
-                ),
                 PopupMenuItem<String>(
                   value: "logout",
                   child: Row(
@@ -450,10 +405,6 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
               
               // Quick Actions
               _buildQuickActions(),
-              SizedBox(height: 24),
-              
-              // Available Deliveries (Real-time from Firebase)
-              _buildAvailableDeliveriesStream(),
               SizedBox(height: 24),
               
               // Accepted Deliveries Section (Real-time from Firebase)
@@ -814,8 +765,8 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
           stream: FirebaseFirestore.instance
               .collection('deliveries')
               .where('assignedRiderId', isEqualTo: 'rider_$currentRiderId')
-              .where('status', isEqualTo: 'completed')
-              .orderBy('completedAt', descending: true)
+              .where('status', whereIn: ['completed', 'cancelled'])
+              .orderBy('updatedAt', descending: true)
               .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -848,7 +799,7 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
                   child: _buildRecentDeliveryCard(
                     data['deliveryAddress'] ?? data['customerName'] ?? 'Unknown',
                     (data['deliveryFee'] ?? 0).toInt(),
-                    'Delivered',
+                    data['status'] ?? 'Unknown',
                   ),
                 );
               }).toList(),
@@ -1095,6 +1046,24 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
   }
   
   Widget _buildRecentDeliveryCard(String route, int earning, String status) {
+    // Determine color and icon based on status
+    Color statusColor;
+    IconData statusIcon;
+    
+    switch (status.toLowerCase()) {
+      case 'completed':
+        statusColor = AppColors.success;
+        statusIcon = Icons.check_circle;
+        break;
+      case 'cancelled':
+        statusColor = Colors.red;
+        statusIcon = Icons.cancel;
+        break;
+      default:
+        statusColor = Colors.grey;
+        statusIcon = Icons.help_outline;
+    }
+    
     return Container(
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1104,7 +1073,7 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
       ),
       child: Row(
         children: [
-          Icon(Icons.check_circle, color: AppColors.success, size: 20),
+          Icon(statusIcon, color: statusColor, size: 20),
           SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -1116,16 +1085,16 @@ class _DeliveryHomeScreenState extends State<DeliveryHomeScreen> {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  status,
-                  style: TextStyle(color: AppColors.success, fontSize: 12),
+                  status.toUpperCase(),
+                  style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
           ),
           Text(
-            "UGX $earning",
+            status.toLowerCase() == 'cancelled' ? 'UGX 0' : "UGX $earning",
             style: TextStyle(
-              color: AppColors.success,
+              color: status.toLowerCase() == 'cancelled' ? Colors.grey : AppColors.success,
               fontWeight: FontWeight.bold,
             ),
           ),
