@@ -3,9 +3,8 @@ import 'package:flutter/services.dart';
 import '../../constants/app_colours.dart';
 import '../../constants/text_styles.dart';
 import 'menu_page.dart';
-//import 'analytics.dart';
 import 'orders.dart';
-import 'profile.dart'; // Make sure this exists
+import 'profile.dart'; 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
