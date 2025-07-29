@@ -59,8 +59,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'mealType': order['mealType'],
           'food': order['food'],
           'restaurant': order['restaurant'],
-          'restaurantId': restaurantId, // Add restaurant ID for security rules
-          'items': items, // Save the full list of ordered items
+          'restaurantId': order['restaurantId'], // Add restaurant ID for security rules
+          'items': order['items'], // Save the full list of ordered items
           'foodPrice': order['foodPrice'],
           'location': order['location'],
           'locationLat': order['locationLat'],

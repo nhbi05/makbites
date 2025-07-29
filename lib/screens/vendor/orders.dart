@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 import 'package:makbites/screens/vendor/set_preparation_time.dart';
+import 'package:makbites/screens/vendor/all_orders_page.dart';
 import 'package:makbites/services/push_notification_service.dart';
 import 'package:makbites/models/automation_models.dart';
 
@@ -85,19 +86,36 @@ class _OrdersPageState extends State<OrdersPage> {
       for (var doc in regularOrdersSnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final timestamp = data['clientTimestamp'];
-        
+        final status = data['status']?.toString() ?? '';
+        final scheduledSendTime = data['scheduledSendTime'];
+        DateTime? scheduledSendDateTime;
+        if (scheduledSendTime is Timestamp) {
+          scheduledSendDateTime = scheduledSendTime.toDate();
+        }
+
         // Skip scheduled orders here - we'll process them separately
         if (data['orderSource'] == 'schedule') {
           continue;
         }
-        
+
         if (timestamp != null && timestamp is Timestamp) {
           final orderDate = timestamp.toDate();
           // Only include today's orders
           if (orderDate.isAfter(startOfDay) && orderDate.isBefore(endOfDay)) {
-            data['id'] = doc.id;
-            data['isScheduled'] = false;
-            allOrders.add(data);
+            bool showOrder = false;
+            if (status == 'sent' || status == 'cancelled') {
+              showOrder = true;
+            } else {
+              // For pending and all other statuses
+              if (scheduledSendDateTime == null || scheduledSendDateTime.isBefore(DateTime.now()) || scheduledSendDateTime.isAtSameMomentAs(DateTime.now())) {
+                showOrder = true;
+              }
+            }
+            if (showOrder) {
+              data['id'] = doc.id;
+              data['isScheduled'] = false;
+              allOrders.add(data);
+            }
           }
         }
       }
@@ -106,31 +124,30 @@ class _OrdersPageState extends State<OrdersPage> {
       // These are orders with orderSource: "schedule" and scheduledTime field
       for (var doc in regularOrdersSnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
-        
+        final status = data['status']?.toString() ?? '';
+        final scheduledSendTime = data['scheduledSendTime'];
+        DateTime? scheduledSendDateTime;
+        if (scheduledSendTime is Timestamp) {
+          scheduledSendDateTime = scheduledSendTime.toDate();
+        }
         // Check if this is a scheduled order
         if (data['orderSource'] == 'schedule' && data['scheduledTime'] != null) {
           final scheduledTimestamp = data['scheduledTime'];
           if (scheduledTimestamp is Timestamp) {
             final scheduledTime = scheduledTimestamp.toDate();
-            final minutesUntilDelivery = scheduledTime.difference(now).inMinutes;
-            
-            print('Found scheduled order: ${doc.id}, minutes until delivery: $minutesUntilDelivery, status: ${data['status']}');
-            
-            // Show if: scheduled time is within next 30 minutes OR up to 60 minutes past scheduled time AND status is pending
-            if (minutesUntilDelivery <= 30 && minutesUntilDelivery >= -60 && 
-                data['status'] == 'pending') {
-              
-              print('✅ Showing scheduled order ${doc.id}');
-              
-              // Add to orders list but mark as scheduled
+            bool showOrder = false;
+            if (status == 'sent' || status == 'cancelled') {
+              showOrder = true;
+            } else {
+              if (scheduledSendDateTime == null || scheduledSendDateTime.isBefore(DateTime.now()) || scheduledSendDateTime.isAtSameMomentAs(DateTime.now())) {
+                showOrder = true;
+              }
+            }
+            if (showOrder) {
               final scheduledOrderData = Map<String, dynamic>.from(data);
               scheduledOrderData['id'] = doc.id;
               scheduledOrderData['isScheduled'] = true;
-              scheduledOrderData['notes'] = 'Scheduled order - delivers at ${DateFormat('HH:mm').format(scheduledTime)}';
-              
               allOrders.add(scheduledOrderData);
-            } else {
-              print('❌ Not showing scheduled order ${doc.id} (outside window or wrong status)');
             }
           }
         }
@@ -314,13 +331,7 @@ class _OrdersPageState extends State<OrdersPage> {
                     : DateTime.now();
                 orderTime = 'Scheduled: ${DateFormat('HH:mm').format(scheduledTime)}';
                 
-                final now = DateTime.now();
-                final minutesUntilDelivery = scheduledTime.difference(now).inMinutes;
-                if (minutesUntilDelivery > 0) {
-                  scheduledInfo = 'Delivers in $minutesUntilDelivery minutes';
-                } else {
-                  scheduledInfo = 'Delivery time reached';
-                }
+                
               } else {
                 orderTime = (timestamp != null && timestamp is Timestamp)
                     ? DateFormat('yyyy-MM-dd – kk:mm').format(timestamp.toDate())
@@ -345,13 +356,12 @@ class _OrdersPageState extends State<OrdersPage> {
                             final normalizedStatus = status.toLowerCase();
                             final price = orderData['foodPrice'] ?? 0;
                             final mealType = orderData['mealType'] ?? '';
-                            final paymentMethod = orderData['paymentMethod'] ?? '';
 
                             return Card(
                               margin: EdgeInsets.symmetric(vertical: 8),
                               child: InkWell(
                                 onTap: () {
-                                  if (normalizedStatus == "pending") {
+                                  if (normalizedStatus == "pending" || normalizedStatus == "sent") {
                                     _showSetPreparationTimeDialog(orderId);
                                   } else if (normalizedStatus == "start preparing") {
                                     updateOrderStatus(orderId, status);
@@ -372,7 +382,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                                   Container(
                                                     padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                     decoration: BoxDecoration(
-                                                      color: Colors.purple,
+                                                      color: Colors.red,
                                                       borderRadius: BorderRadius.circular(4),
                                                     ),
                                                     child: Text(
@@ -388,14 +398,17 @@ class _OrdersPageState extends State<OrdersPage> {
                                               ],
                                             ),
                                           ),
-                                          if (normalizedStatus == "pending")
-                                            GestureDetector(
-                                              onTap: () => _showCancelDialog(context, orderId),
-                                              child: Tooltip(
-                                                message: "Cancel Order",
-                                                child: Icon(Icons.cancel, color: Colors.red),
+                                          GestureDetector(
+                                            onTap: () => _showCancelDialog(context, orderId),
+                                            child: Container(
+                                              padding: EdgeInsets.all(4),
+                                              child: Icon(
+                                                Icons.close,
+                                                color: Colors.red,
+                                                size: 20,
                                               ),
                                             ),
+                                          ),
                                         ],
                                       ),
                                       Text("$displayOrderId • $orderTime"),
@@ -417,7 +430,6 @@ class _OrdersPageState extends State<OrdersPage> {
                                       SizedBox(height: 4),
                                       Text("Food: $foodItem"),
                                       Text("Meal Type: $mealType"),
-                                      Text("Payment: $paymentMethod"),
                                       SizedBox(height: 8),
                                       Row(
                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -506,7 +518,23 @@ class _OrdersPageState extends State<OrdersPage> {
                   icon: Icon(Icons.refresh),
                   label: Text('Refresh'),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AllOrdersPage(vendorRestaurantId: widget.vendorRestaurantId),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.list, color: Colors.white),
+                  label: const Text('All Orders', style: TextStyle(color: Colors.white)),
+                ),
+                const SizedBox(width: 8),
                 Text('${_combinedOrders.length} orders', style: TextStyle(color: Colors.grey[600])),
               ],
             ),
