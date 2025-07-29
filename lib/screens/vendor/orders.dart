@@ -359,82 +359,80 @@ class _OrdersPageState extends State<OrdersPage> {
 
                             return Card(
                               margin: EdgeInsets.symmetric(vertical: 8),
-                              child: InkWell(
-                                onTap: () {
-                                  if (normalizedStatus == "pending" || normalizedStatus == "sent") {
-                                    _showSetPreparationTimeDialog(orderId);
-                                  } else if (normalizedStatus == "start preparing") {
-                                    updateOrderStatus(orderId, status);
-                                  }
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12.0),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Expanded(
-                                            child: Row(
-                                              children: [
-                                                if (isScheduled) ...[
-                                                  Container(
-                                                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.red,
-                                                      borderRadius: BorderRadius.circular(4),
-                                                    ),
-                                                    child: Text(
-                                                      'SCHEDULED',
-                                                      style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                                                    ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Expanded(
+                                          child: Row(
+                                            children: [
+                                              if (isScheduled) ...[
+                                                Container(
+                                                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.red,
+                                                    borderRadius: BorderRadius.circular(4),
                                                   ),
-                                                  SizedBox(width: 8),
-                                                ],
-                                                Expanded(
-                                                  child: Text(customerName, style: TextStyle(fontWeight: FontWeight.bold)),
+                                                  child: Text(
+                                                    'SCHEDULED',
+                                                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                                  ),
                                                 ),
+                                                SizedBox(width: 8),
                                               ],
-                                            ),
-                                          ),
-                                          GestureDetector(
-                                            onTap: () => _showCancelDialog(context, orderId),
-                                            child: Container(
-                                              padding: EdgeInsets.all(4),
-                                              child: Icon(
-                                                Icons.close,
-                                                color: Colors.red,
-                                                size: 20,
+                                              Expanded(
+                                                child: Text(customerName, style: TextStyle(fontWeight: FontWeight.bold)),
                                               ),
+                                            ],
+                                          ),
+                                        ),
+                                        GestureDetector(
+                                          onTap: () => _showCancelDialog(context, orderId),
+                                          child: Container(
+                                            padding: EdgeInsets.all(4),
+                                            child: Icon(
+                                              Icons.close,
+                                              color: Colors.red,
+                                              size: 20,
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                      Text("$displayOrderId • $orderTime"),
-                                      if (isScheduled && scheduledInfo.isNotEmpty) ...[
-                                        SizedBox(height: 2),
-                                        Container(
-                                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: Colors.purple.withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(4),
-                                            border: Border.all(color: Colors.purple.withOpacity(0.3)),
-                                          ),
-                                          child: Text(
-                                            scheduledInfo,
-                                            style: TextStyle(color: Colors.purple[700], fontWeight: FontWeight.w500, fontSize: 12),
                                           ),
                                         ),
                                       ],
-                                      SizedBox(height: 4),
-                                      Text("Food: $foodItem"),
-                                      Text("Meal Type: $mealType"),
-                                      SizedBox(height: 8),
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Container(
+                                    ),
+                                    Text("$displayOrderId • $orderTime"),
+                                    if (isScheduled && scheduledInfo.isNotEmpty) ...[
+                                      SizedBox(height: 2),
+                                      Container(
+                                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.purple.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(color: Colors.purple.withOpacity(0.3)),
+                                        ),
+                                        child: Text(
+                                          scheduledInfo,
+                                          style: TextStyle(color: Colors.purple[700], fontWeight: FontWeight.w500, fontSize: 12),
+                                        ),
+                                      ),
+                                    ],
+                                    SizedBox(height: 4),
+                                    Text("Food: $foodItem"),
+                                    Text("Meal Type: $mealType"),
+                                    SizedBox(height: 8),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        GestureDetector(
+                                          onTap: () {
+                                            if (normalizedStatus == "pending" || normalizedStatus == "sent") {
+                                              _showSetPreparationTimeDialog(orderId);
+                                            }
+                                          },
+                                          child: Container(
                                             padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                                             decoration: BoxDecoration(
                                               color: normalizedStatus == "completed"
@@ -467,11 +465,11 @@ class _OrdersPageState extends State<OrdersPage> {
                                               ],
                                             ),
                                           ),
-                                          Text("Shs. $price", style: TextStyle(fontWeight: FontWeight.bold)),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
+                                        ),
+                                        Text("Shs. $price", style: TextStyle(fontWeight: FontWeight.bold)),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               ),
                             );
