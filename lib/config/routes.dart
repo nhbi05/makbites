@@ -10,6 +10,7 @@ import '../screens/delivery/delivery_home.dart';
 import '../screens/delivery/profiles.dart';
 import '../screens/customer/weekly_schedule_setup.dart';
 import '../screens/delivery/delivery_map_screen.dart';
+import '../screens/delivery/delivery_history_screen.dart';
 import '../screens/customer/browse_restaurants_screen.dart'; // For CartScreen
 import '../models/delivery_location.dart';
 
@@ -23,6 +24,7 @@ class AppRoutes {
   static const String restaurantHome = '/restaurant-home';
   static const String deliveryHome = '/delivery-home';
   static const String deliveryProfile = '/profiles';
+  static const String deliveryHistory = '/delivery-history';
   static const String weeklyScheduleSetup = '/weekly-schedule-setup';
   static const String deliveryMap = '/navigation';
   static const String cart = '/cart';
@@ -38,6 +40,7 @@ class AppRoutes {
       restaurantHome: (context) => VendorHomePage(),
       deliveryHome: (context) => DeliveryHomeScreen(),
       deliveryProfile: (context) => ProfileScreen(),
+      deliveryHistory: (context) => DeliveryHistoryScreen(),
       weeklyScheduleSetup: (context) => WeeklyScheduleSetupScreen(),
       deliveryMap: (context) => DeliveryMapScreen(
         deliveries: ModalRoute.of(context)!.settings.arguments as List<DeliveryLocation>,

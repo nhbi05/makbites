@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 import 'package:makbites/screens/vendor/set_preparation_time.dart';
+import 'package:makbites/screens/vendor/all_orders_page.dart';
 import 'package:makbites/services/push_notification_service.dart';
 import 'package:makbites/models/automation_models.dart';
 
@@ -85,19 +86,36 @@ class _OrdersPageState extends State<OrdersPage> {
       for (var doc in regularOrdersSnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final timestamp = data['clientTimestamp'];
-        
+        final status = data['status']?.toString() ?? '';
+        final scheduledSendTime = data['scheduledSendTime'];
+        DateTime? scheduledSendDateTime;
+        if (scheduledSendTime is Timestamp) {
+          scheduledSendDateTime = scheduledSendTime.toDate();
+        }
+
         // Skip scheduled orders here - we'll process them separately
         if (data['orderSource'] == 'schedule') {
           continue;
         }
-        
+
         if (timestamp != null && timestamp is Timestamp) {
           final orderDate = timestamp.toDate();
           // Only include today's orders
           if (orderDate.isAfter(startOfDay) && orderDate.isBefore(endOfDay)) {
-            data['id'] = doc.id;
-            data['isScheduled'] = false;
-            allOrders.add(data);
+            bool showOrder = false;
+            if (status == 'sent' || status == 'cancelled') {
+              showOrder = true;
+            } else {
+              // For pending and all other statuses
+              if (scheduledSendDateTime == null || scheduledSendDateTime.isBefore(DateTime.now()) || scheduledSendDateTime.isAtSameMomentAs(DateTime.now())) {
+                showOrder = true;
+              }
+            }
+            if (showOrder) {
+              data['id'] = doc.id;
+              data['isScheduled'] = false;
+              allOrders.add(data);
+            }
           }
         }
       }
@@ -106,31 +124,30 @@ class _OrdersPageState extends State<OrdersPage> {
       // These are orders with orderSource: "schedule" and scheduledTime field
       for (var doc in regularOrdersSnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
-        
+        final status = data['status']?.toString() ?? '';
+        final scheduledSendTime = data['scheduledSendTime'];
+        DateTime? scheduledSendDateTime;
+        if (scheduledSendTime is Timestamp) {
+          scheduledSendDateTime = scheduledSendTime.toDate();
+        }
         // Check if this is a scheduled order
         if (data['orderSource'] == 'schedule' && data['scheduledTime'] != null) {
           final scheduledTimestamp = data['scheduledTime'];
           if (scheduledTimestamp is Timestamp) {
             final scheduledTime = scheduledTimestamp.toDate();
-            final minutesUntilDelivery = scheduledTime.difference(now).inMinutes;
-            
-            print('Found scheduled order: ${doc.id}, minutes until delivery: $minutesUntilDelivery, status: ${data['status']}');
-            
-            // Show if: scheduled time is within next 30 minutes OR up to 60 minutes past scheduled time AND status is pending
-            if (minutesUntilDelivery <= 30 && minutesUntilDelivery >= -60 && 
-                data['status'] == 'pending') {
-              
-              print('✅ Showing scheduled order ${doc.id}');
-              
-              // Add to orders list but mark as scheduled
+            bool showOrder = false;
+            if (status == 'sent' || status == 'cancelled') {
+              showOrder = true;
+            } else {
+              if (scheduledSendDateTime == null || scheduledSendDateTime.isBefore(DateTime.now()) || scheduledSendDateTime.isAtSameMomentAs(DateTime.now())) {
+                showOrder = true;
+              }
+            }
+            if (showOrder) {
               final scheduledOrderData = Map<String, dynamic>.from(data);
               scheduledOrderData['id'] = doc.id;
               scheduledOrderData['isScheduled'] = true;
-              scheduledOrderData['notes'] = 'Scheduled order - delivers at ${DateFormat('HH:mm').format(scheduledTime)}';
-              
               allOrders.add(scheduledOrderData);
-            } else {
-              print('❌ Not showing scheduled order ${doc.id} (outside window or wrong status)');
             }
           }
         }
@@ -314,13 +331,7 @@ class _OrdersPageState extends State<OrdersPage> {
                     : DateTime.now();
                 orderTime = 'Scheduled: ${DateFormat('HH:mm').format(scheduledTime)}';
                 
-                final now = DateTime.now();
-                final minutesUntilDelivery = scheduledTime.difference(now).inMinutes;
-                if (minutesUntilDelivery > 0) {
-                  scheduledInfo = 'Delivers in $minutesUntilDelivery minutes';
-                } else {
-                  scheduledInfo = 'Delivery time reached';
-                }
+                
               } else {
                 orderTime = (timestamp != null && timestamp is Timestamp)
                     ? DateFormat('yyyy-MM-dd – kk:mm').format(timestamp.toDate())
@@ -345,17 +356,21 @@ class _OrdersPageState extends State<OrdersPage> {
                             final normalizedStatus = status.toLowerCase();
                             final price = orderData['foodPrice'] ?? 0;
                             final mealType = orderData['mealType'] ?? '';
-                            final paymentMethod = orderData['paymentMethod'] ?? '';
 
                             return Card(
                               margin: EdgeInsets.symmetric(vertical: 8),
                               child: InkWell(
                                 onTap: () {
-                                  if (normalizedStatus == "pending") {
-                                    _showSetPreparationTimeDialog(orderId);
-                                  } else if (normalizedStatus == "start preparing") {
-                                    updateOrderStatus(orderId, status);
-                                  }
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => OrderDetailsPage(
+                                        orderData: orderData,
+                                        customerName: customerName,
+                                        orderId: displayOrderId,
+                                      ),
+                                    ),
+                                  );
                                 },
                                 child: Padding(
                                   padding: const EdgeInsets.all(12.0),
@@ -372,7 +387,7 @@ class _OrdersPageState extends State<OrdersPage> {
                                                   Container(
                                                     padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                     decoration: BoxDecoration(
-                                                      color: Colors.purple,
+                                                      color: Colors.red,
                                                       borderRadius: BorderRadius.circular(4),
                                                     ),
                                                     child: Text(
@@ -388,14 +403,17 @@ class _OrdersPageState extends State<OrdersPage> {
                                               ],
                                             ),
                                           ),
-                                          if (normalizedStatus == "pending")
-                                            GestureDetector(
-                                              onTap: () => _showCancelDialog(context, orderId),
-                                              child: Tooltip(
-                                                message: "Cancel Order",
-                                                child: Icon(Icons.cancel, color: Colors.red),
+                                          GestureDetector(
+                                            onTap: () => _showCancelDialog(context, orderId),
+                                            child: Container(
+                                              padding: EdgeInsets.all(4),
+                                              child: Icon(
+                                                Icons.close,
+                                                color: Colors.red,
+                                                size: 20,
                                               ),
                                             ),
+                                          ),
                                         ],
                                       ),
                                       Text("$displayOrderId • $orderTime"),
@@ -417,42 +435,48 @@ class _OrdersPageState extends State<OrdersPage> {
                                       SizedBox(height: 4),
                                       Text("Food: $foodItem"),
                                       Text("Meal Type: $mealType"),
-                                      Text("Payment: $paymentMethod"),
                                       SizedBox(height: 8),
                                       Row(
                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
-                                          Container(
-                                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: normalizedStatus == "completed"
-                                                  ? Colors.green
-                                                  : normalizedStatus == "start preparing"
-                                                  ? Colors.orange
-                                                  : normalizedStatus == "cancelled"
-                                                  ? Colors.grey
-                                                  : Colors.blueAccent,
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  normalizedStatus == "completed"
-                                                      ? Icons.check
-                                                      : normalizedStatus == "start preparing"
-                                                      ? Icons.access_time
-                                                      : normalizedStatus == "cancelled"
-                                                      ? Icons.cancel
-                                                      : Icons.fiber_new,
-                                                  color: Colors.white,
-                                                  size: 16,
-                                                ),
-                                                SizedBox(width: 4),
-                                                Text(
-                                                  status[0].toUpperCase() + status.substring(1),
-                                                  style: TextStyle(color: Colors.white),
-                                                ),
-                                              ],
+                                          GestureDetector(
+                                            onTap: () {
+                                              if (normalizedStatus == "pending" || normalizedStatus == "sent") {
+                                                _showSetPreparationTimeDialog(orderId);
+                                              }
+                                            },
+                                            child: Container(
+                                              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: normalizedStatus == "completed"
+                                                    ? Colors.green
+                                                    : normalizedStatus == "start preparing"
+                                                    ? Colors.orange
+                                                    : normalizedStatus == "cancelled"
+                                                    ? Colors.grey
+                                                    : Colors.blueAccent,
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  Icon(
+                                                    normalizedStatus == "completed"
+                                                        ? Icons.check
+                                                        : normalizedStatus == "start preparing"
+                                                        ? Icons.access_time
+                                                        : normalizedStatus == "cancelled"
+                                                        ? Icons.cancel
+                                                        : Icons.fiber_new,
+                                                    color: Colors.white,
+                                                    size: 16,
+                                                  ),
+                                                  SizedBox(width: 4),
+                                                  Text(
+                                                    status[0].toUpperCase() + status.substring(1),
+                                                    style: TextStyle(color: Colors.white),
+                                                  ),
+                                                ],
+                                              ),
                                             ),
                                           ),
                                           Text("Shs. $price", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -506,7 +530,23 @@ class _OrdersPageState extends State<OrdersPage> {
                   icon: Icon(Icons.refresh),
                   label: Text('Refresh'),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AllOrdersPage(vendorRestaurantId: widget.vendorRestaurantId),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.list, color: Colors.white),
+                  label: const Text('All Orders', style: TextStyle(color: Colors.white)),
+                ),
+                const SizedBox(width: 8),
                 Text('${_combinedOrders.length} orders', style: TextStyle(color: Colors.grey[600])),
               ],
             ),
@@ -549,6 +589,180 @@ class _OrdersPageState extends State<OrdersPage> {
           Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
           SizedBox(height: 4),
           Text(value),
+        ],
+      ),
+    );
+  }
+}
+
+// Order Details Page
+class OrderDetailsPage extends StatefulWidget {
+  final Map<String, dynamic> orderData;
+  final String customerName;
+  final String orderId;
+
+  const OrderDetailsPage({
+    required this.orderData,
+    required this.customerName,
+    required this.orderId,
+  });
+
+  @override
+  State<OrderDetailsPage> createState() => _OrderDetailsPageState();
+}
+
+class _OrderDetailsPageState extends State<OrderDetailsPage> {
+  String? _contactInfo;
+  bool _loadingContact = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchContactInfoIfNeeded();
+  }
+
+  void _fetchContactInfoIfNeeded() async {
+    final orderData = widget.orderData;
+    String? contact = orderData['contactInfo'] ?? orderData['phone'] ?? (orderData['delivery'] is Map ? orderData['delivery']['phone'] : null);
+    if (contact == null || contact.toString().trim().isEmpty) {
+      final userId = orderData['userId'];
+      if (userId != null) {
+        setState(() { _loadingContact = true; });
+        try {
+          final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+          final userPhone = userDoc.data()?['phone'];
+          if (userPhone != null && userPhone.toString().trim().isNotEmpty) {
+            setState(() { _contactInfo = userPhone.toString(); });
+          }
+        } catch (e) {
+          // Optionally handle error
+        }
+        setState(() { _loadingContact = false; });
+      }
+    } else {
+      setState(() { _contactInfo = contact.toString(); });
+    }
+  }
+
+  String cleanText(dynamic value, {String fallback = 'N/A'}) {
+    if (value == null) return fallback;
+    final text = value.toString().trim();
+    return text.isEmpty ? fallback : text;
+  }
+
+  String getFoodDescription(dynamic foodData, dynamic itemsData) {
+    // For automated orders
+    if (foodData != null && foodData.toString().trim().isNotEmpty) {
+      return foodData.toString();
+    }
+    // For normal orders with items array
+    if (itemsData is List && itemsData.isNotEmpty) {
+      return itemsData
+          .map((item) =>
+              (item is Map && item['name'] != null) ? item['name'].toString() : '')
+          .where((name) => name.isNotEmpty)
+          .join(', ');
+    }
+    return 'N/A';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final orderData = widget.orderData;
+    final formatter = DateFormat('yyyy-MM-dd – hh:mm a');
+    final isAutomated = orderData['orderSource'] == 'schedule';
+    final scheduledTime = orderData['scheduledSendTime'];
+    final timestamp = orderData['clientTimestamp'];
+    final orderTime = (isAutomated && scheduledTime != null && scheduledTime is Timestamp)
+        ? 'Scheduled: ' + formatter.format(scheduledTime.toDate())
+        : (timestamp != null && timestamp is Timestamp)
+            ? formatter.format(timestamp.toDate())
+            : 'Unknown';
+
+    final deliveryMan = orderData['deliveryMan'];
+    final deliveryInfo = (deliveryMan != null && deliveryMan.toString().trim().isNotEmpty)
+        ? "Assigned to: $deliveryMan"
+        : "No delivery person assigned yet";
+
+    final foodDescription = getFoodDescription(orderData['food'], orderData['items']);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Order Details"),
+        backgroundColor: Colors.red,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          Card(
+            elevation: 5,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Order ID: ${widget.orderId}",
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                  SizedBox(height: 8),
+                  Text("Customer: ${widget.customerName}",
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  SizedBox(height: 8),
+                  Divider(),
+                  ListTile(
+                    leading: Icon(Icons.fastfood),
+                    title: Text("Food"),
+                    subtitle: Text(foodDescription),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.attach_money),
+                    title: Text("Price"),
+                    subtitle: Text("Shs. ${cleanText(orderData['foodPrice'])}"),
+                  ),
+                  if (isAutomated)
+                    ListTile(
+                      leading: Icon(Icons.category),
+                      title: Text("Meal Type"),
+                      subtitle: Text(cleanText(orderData['mealType'])),
+                    ),
+                  ListTile(
+                    leading: Icon(Icons.location_on),
+                    title: Text("Delivery Address"),
+                    subtitle: Text(
+                        cleanText(
+                            orderData['deliveryAddress'] ??
+                                orderData['address'] ??
+                                orderData['location'] ??
+                                (orderData['delivery'] is Map ? orderData['delivery']['address'] : null)
+                        )
+                    ),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.phone),
+                    title: Text("Contact Info"),
+                    subtitle: _loadingContact
+                        ? Text("Loading...")
+                        : Text(cleanText(_contactInfo)),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.notes),
+                    title: Text("Notes"),
+                    subtitle: Text(cleanText(orderData['notes'], fallback: 'No notes')),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.access_time),
+                    title: Text("Order Time"),
+                    subtitle: Text(orderTime),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.delivery_dining),
+                    title: Text("Delivery Info"),
+                    subtitle: Text(deliveryInfo),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
