@@ -689,7 +689,7 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Order Details"),
-        backgroundColor: Colors.deepOrange,
+        backgroundColor: Colors.red,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16.0),

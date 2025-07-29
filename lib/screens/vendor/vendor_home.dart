@@ -4,7 +4,7 @@ import '../../constants/app_colours.dart';
 import '../../constants/text_styles.dart';
 import 'menu_page.dart';
 import 'orders.dart';
-import 'profile.dart'; 
+import 'profile.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -19,6 +19,12 @@ class _VendorHomePageState extends State<VendorHomePage> {
   late List<Widget> _pages;
   String? _restaurantId;
   Map<String, String> _userIdToName = {};
+  int _todayOrders = 0;
+  int _pendingOrders = 0;
+  double _todayRevenue = 0.0;
+  int _cancelledOrders = 0;
+  int _deliveredToday = 0;
+  bool _isLoadingMetrics = true;
 
   @override
   void initState() {
@@ -27,6 +33,7 @@ class _VendorHomePageState extends State<VendorHomePage> {
     _getAndSaveFcmToken();
     _loadRestaurantId();
     _loadUsers();
+    _loadMetrics();
 
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
       statusBarColor: Colors.amber[100],
@@ -84,12 +91,80 @@ class _VendorHomePageState extends State<VendorHomePage> {
     }
   }
 
+  Future<void> _loadMetrics() async {
+    if (_restaurantId == null) return;
+
+    try {
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day);
+      final endOfDay = startOfDay.add(Duration(days: 1));
+
+      // Get today's orders
+      final ordersSnapshot = await FirebaseFirestore.instance
+          .collection('orders')
+          .where('restaurant', isEqualTo: _restaurantId)
+          .get();
+
+      int todayOrders = 0;
+      int pendingOrders = 0;
+      double todayRevenue = 0.0;
+      int cancelledToday = 0;
+      int deliveredToday = 0;
+
+      for (var doc in ordersSnapshot.docs) {
+        final data = doc.data();
+        final timestamp = data['clientTimestamp'];
+        final status = data['status']?.toString().toLowerCase() ?? '';
+        final price = (data['foodPrice'] ?? 0).toDouble();
+
+        // Check if order is from today
+        if (timestamp != null && timestamp is Timestamp) {
+          final orderDate = timestamp.toDate();
+          if (orderDate.isAfter(startOfDay) && orderDate.isBefore(endOfDay)) {
+            todayOrders++;
+            todayRevenue += price;
+            // Count cancelled orders from today
+            if (status == 'cancelled') {
+              cancelledToday++;
+            }
+          }
+        }
+
+        // Count ALL delivered orders (any date)
+        if (status == 'delivered') {
+          deliveredToday++;
+        }
+
+        // Count pending orders (including sent and start preparing)
+        if (status == 'pending' || status == 'sent' || status == 'start preparing') {
+          pendingOrders++;
+        }
+      }
+
+      setState(() {
+        _todayOrders = todayOrders;
+        _pendingOrders = pendingOrders;
+        _todayRevenue = todayRevenue;
+        _cancelledOrders = cancelledToday;
+        _deliveredToday = deliveredToday;
+        _isLoadingMetrics = false;
+      });
+    } catch (e) {
+      print('Error loading metrics: $e');
+      setState(() {
+        _isLoadingMetrics = false;
+      });
+    }
+  }
+
   Future<void> _loadRestaurantId() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     setState(() {
       _restaurantId = user.uid;
     });
+    // Load metrics after restaurant ID is set
+    await _loadMetrics();
   }
 
   Future<void> _loadUsers() async {
@@ -242,10 +317,36 @@ class _VendorHomePageState extends State<VendorHomePage> {
         childAspectRatio: 2.5,
         physics: NeverScrollableScrollPhysics(),
         children: [
-          _metricCard(Icons.shopping_cart, "23", "Today's Orders", AppColors.success),
-          _metricCard(Icons.attach_money, "UGX 200K", "Revenue", Colors.amber),
-          _metricCard(Icons.timelapse, "5", "Pending Orders", AppColors.primary),
-          _metricCard(Icons.star, "4.8", "Rating", Colors.amber),
+          _metricCard(
+            Icons.shopping_cart,
+            _isLoadingMetrics ? "..." : "$_todayOrders",
+            "Today's Orders",
+            AppColors.success
+          ),
+          _metricCard(
+            Icons.attach_money,
+            _isLoadingMetrics ? "..." : "UGX ${_todayRevenue.toStringAsFixed(0)}",
+            "Revenue",
+            Colors.amber
+          ),
+          _metricCard(
+            Icons.timelapse,
+            _isLoadingMetrics ? "..." : "$_pendingOrders",
+            "Pending Orders",
+            AppColors.primary
+          ),
+          _metricCard(
+            Icons.check_circle,
+            _isLoadingMetrics ? "..." : "$_deliveredToday",
+            "Delivered Today",
+            Colors.green
+          ),
+          _metricCard(
+            Icons.cancel,
+            _isLoadingMetrics ? "..." : "$_cancelledOrders",
+            "Cancelled Today",
+            Colors.red
+          ),
         ],
       ),
     );
