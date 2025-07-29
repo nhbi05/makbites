@@ -51,61 +51,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
         final mealType = order['mealType'];
         final optimalMealTimes = widget.optimalMealTimes;
         DateTime? scheduledSendTime;
-        DateTime? optimalMealTime;
         if (optimalMealTimes != null && optimalMealTimes[mealType] != null) {
-          optimalMealTime = optimalMealTimes[mealType];
-          scheduledSendTime = optimalMealTime!.subtract(Duration(minutes: 30));
+          scheduledSendTime = optimalMealTimes[mealType]!.subtract(Duration(minutes: 30));
         }
-        // Determine status and send logic
-        String status;
-        DateTime? sentAt;
-        if (widget.orderSource == 'browse') {
-          status = 'sent';
-          sentAt = DateTime.now();
-          scheduledSendTime = null;
-        } else {
-          status = 'pending';
-          sentAt = null; // Explicitly do not set sentAt for scheduled orders
-        }
-        // Get customer phone from order or fetch from user profile
-        String? customerPhone = order['customerPhone'];
-        if (customerPhone == null || customerPhone.isEmpty) {
-          final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-          print('Fetched user doc for ${user.uid}: ${userDoc.data()}'); // <-- Add this
-          customerPhone = userDoc.data()?['phone'] ?? '';
-          print('Fetched phone: $customerPhone'); // <-- And this
-        }
-        // Get restaurant ID from restaurant name
-        String? restaurantId;
-        if (order['restaurant'] != null) {
-          final restaurantSnapshot = await FirebaseFirestore.instance
-              .collection('restaurants')
-              .where('name', isEqualTo: order['restaurant'])
-              .limit(1)
-              .get();
-          
-          if (restaurantSnapshot.docs.isNotEmpty) {
-            restaurantId = restaurantSnapshot.docs.first.id;
-          }
-        }
-
-        // Create items array for the order
-        List<Map<String, dynamic>> items = [];
-        if (order['items'] != null) {
-          // If items are already in the order, use them
-          items = List<Map<String, dynamic>>.from(order['items']);
-        } else {
-          // Create a single item from the order data
-          items = [{
-            'name': order['food'] ?? 'Food Item',
-            'price': order['foodPrice'] ?? 0,
-            'quantity': 1,
-            'restaurant': order['restaurant'],
-            'imageUrl': order['imageUrl'],
-            'description': order['description'],
-          }];
-        }
-
         await FirebaseFirestore.instance.collection('orders').add({
           'userId': user.uid,
           'mealType': order['mealType'],
@@ -121,15 +69,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'orderDate': order['orderDate'] ?? DateTime.now(),
           'clientTimestamp': DateTime.now(),
           'serverTimestamp': FieldValue.serverTimestamp(),
-          'status': status, // Set to 'sent' for browse, 'pending' for schedule
+          'status': 'pending', // Not sent yet
           'orderSource': widget.orderSource,
           'scheduledSendTime': scheduledSendTime, // Add this field
-          'scheduledTime': scheduledSendTime != null ? Timestamp.fromDate(scheduledSendTime) : null, // <-- Add this line
-          'customerLocation': {
-            'latitude': order['locationLat'],
-            'longitude': order['locationLng'],
-          },
-          'customerPhone': customerPhone, // <-- Ensure phone is saved
         });
       } catch (e) {
         print('Error saving order: $e');
