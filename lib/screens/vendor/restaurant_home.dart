@@ -294,9 +294,9 @@ class _VendorHomePageState extends State<VendorHomePage> {
             },
           ),
 
-          // Delivered Orders Today - Changed from Pending Orders
+          // Delivered Orders Today - Fixed version with debugging
           StreamBuilder<QuerySnapshot>(
-            stream: _getDeliveredOrdersStream(),
+            stream: _getVendorOrdersStream(), // Using all orders stream instead of delivered-only
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 print("Delivered Orders Error: ${snapshot.error}");
@@ -304,22 +304,64 @@ class _VendorHomePageState extends State<VendorHomePage> {
               }
 
               if (snapshot.hasData) {
-                // Filter to only include today's delivered orders
+                print("=== DELIVERED ORDERS DEBUG ===");
+                print("Total orders fetched: ${snapshot.data!.docs.length}");
+
+                // Get today's date range
                 final now = DateTime.now();
                 final startOfDay = DateTime(now.year, now.month, now.day);
+                final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+                print("Today's date range: $startOfDay to $endOfDay");
 
                 final todayDeliveredOrders = snapshot.data!.docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
-                  final timestamp = data['clientTimestamp'] as Timestamp?;
                   final status = data['status']?.toString().toLowerCase() ?? '';
 
-                  if (timestamp != null && status == 'delivered') {
-                    return timestamp.toDate().isAfter(startOfDay);
+                  print("Order ${doc.id}: status='$status'");
+
+                  // First check if status is delivered
+                  if (status != 'delivered') {
+                    return false;
                   }
-                  return false;
+
+                  // Then check multiple possible timestamp fields
+                  Timestamp? orderTimestamp;
+
+                  // Try different timestamp field names that might exist
+                  if (data.containsKey('clientTimestamp') && data['clientTimestamp'] != null) {
+                    orderTimestamp = data['clientTimestamp'] as Timestamp;
+                    print("  Found clientTimestamp: ${orderTimestamp.toDate()}");
+                  } else if (data.containsKey('timestamp') && data['timestamp'] != null) {
+                    orderTimestamp = data['timestamp'] as Timestamp;
+                    print("  Found timestamp: ${orderTimestamp.toDate()}");
+                  } else if (data.containsKey('orderDate') && data['orderDate'] != null) {
+                    orderTimestamp = data['orderDate'] as Timestamp;
+                    print("  Found orderDate: ${orderTimestamp.toDate()}");
+                  } else if (data.containsKey('deliveredAt') && data['deliveredAt'] != null) {
+                    orderTimestamp = data['deliveredAt'] as Timestamp;
+                    print("  Found deliveredAt: ${orderTimestamp.toDate()}");
+                  } else {
+                    print("  No timestamp found for delivered order ${doc.id}");
+                    print("  Available fields: ${data.keys.toList()}");
+                  }
+
+                  if (orderTimestamp != null) {
+                    final orderDate = orderTimestamp.toDate();
+                    final isToday = orderDate.isAfter(startOfDay) && orderDate.isBefore(endOfDay);
+                    print("  Order date: $orderDate, Is today: $isToday");
+                    return isToday;
+                  }
+
+                  // If no timestamp found, include it anyway (might be recent)
+                  print("  Including delivered order without timestamp: ${doc.id}");
+                  return true;
                 }).toList();
 
                 final count = todayDeliveredOrders.length;
+                print("Final delivered orders today count: $count");
+                print("=== END DEBUG ===");
+
                 return _metricCard(Icons.check_circle, "$count", "Delivered Today", AppColors.success);
               } else {
                 return _metricCard(Icons.check_circle, "...", "Delivered Today", AppColors.success);
@@ -327,7 +369,80 @@ class _VendorHomePageState extends State<VendorHomePage> {
             },
           ),
 
-          _metricCard(Icons.star, "4.8", "Rating", Colors.amber),
+          // Cancelled Orders Today - Replaces the rating metric card
+          StreamBuilder<QuerySnapshot>(
+            stream: _getVendorOrdersStream(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                print("Cancelled Orders Error: ${snapshot.error}");
+                return _metricCard(Icons.cancel, "Error", "Cancelled ", Colors.red);
+              }
+
+              if (snapshot.hasData) {
+                print("=== CANCELLED ORDERS DEBUG ===");
+                print("Total orders fetched: ${snapshot.data!.docs.length}");
+
+                // Get today's date range
+                final now = DateTime.now();
+                final startOfDay = DateTime(now.year, now.month, now.day);
+                final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+                print("Today's date range: $startOfDay to $endOfDay");
+
+                final todayCancelledOrders = snapshot.data!.docs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final status = data['status']?.toString().toLowerCase() ?? '';
+
+                  print("Order ${doc.id}: status='$status'");
+
+                  // First check if status is cancelled
+                  if (status != 'cancelled') {
+                    return false;
+                  }
+
+                  // Then check multiple possible timestamp fields
+                  Timestamp? orderTimestamp;
+
+                  // Try different timestamp field names that might exist
+                  if (data.containsKey('clientTimestamp') && data['clientTimestamp'] != null) {
+                    orderTimestamp = data['clientTimestamp'] as Timestamp;
+                    print("  Found clientTimestamp: ${orderTimestamp.toDate()}");
+                  } else if (data.containsKey('timestamp') && data['timestamp'] != null) {
+                    orderTimestamp = data['timestamp'] as Timestamp;
+                    print("  Found timestamp: ${orderTimestamp.toDate()}");
+                  } else if (data.containsKey('orderDate') && data['orderDate'] != null) {
+                    orderTimestamp = data['orderDate'] as Timestamp;
+                    print("  Found orderDate: ${orderTimestamp.toDate()}");
+                  } else if (data.containsKey('cancelledAt') && data['cancelledAt'] != null) {
+                    orderTimestamp = data['cancelledAt'] as Timestamp;
+                    print("  Found cancelledAt: ${orderTimestamp.toDate()}");
+                  } else {
+                    print("  No timestamp found for cancelled order ${doc.id}");
+                    print("  Available fields: ${data.keys.toList()}");
+                  }
+
+                  if (orderTimestamp != null) {
+                    final orderDate = orderTimestamp.toDate();
+                    final isToday = orderDate.isAfter(startOfDay) && orderDate.isBefore(endOfDay);
+                    print("  Order date: $orderDate, Is today: $isToday");
+                    return isToday;
+                  }
+
+                  // If no timestamp found, include it anyway (might be recent)
+                  print("  Including cancelled order without timestamp: ${doc.id}");
+                  return true;
+                }).toList();
+
+                final count = todayCancelledOrders.length;
+                print("Final cancelled orders today count: $count");
+                print("=== END DEBUG ===");
+
+                return _metricCard(Icons.cancel, "$count", "Cancelled ", Colors.red);
+              } else {
+                return _metricCard(Icons.cancel, "...", "Cancelled ", Colors.red);
+              }
+            },
+          ),
         ],
       ),
     );
@@ -388,6 +503,25 @@ class _VendorHomePageState extends State<VendorHomePage> {
         .snapshots();
   }
 
+  // New stream for cancelled orders
+  Stream<QuerySnapshot> _getCancelledOrdersStream() {
+    if (vendorId == null) return const Stream.empty();
+
+    if (restaurantName != null && restaurantName!.isNotEmpty) {
+      return FirebaseFirestore.instance
+          .collection('orders')
+          .where('restaurant', isEqualTo: restaurantName)
+          .where('status', isEqualTo: 'cancelled')
+          .snapshots();
+    }
+
+    return FirebaseFirestore.instance
+        .collection('orders')
+        .where('vendorId', isEqualTo: vendorId)
+        .where('status', isEqualTo: 'cancelled')
+        .snapshots();
+  }
+
   Widget _recentOrdersList() {
     if (vendorId == null) {
       return const Padding(
@@ -401,7 +535,7 @@ class _VendorHomePageState extends State<VendorHomePage> {
           .collection('orders')
           .where('restaurant', isEqualTo: restaurantName)
           .orderBy('clientTimestamp', descending: true)
-          .limit(10)
+          .limit(20) // Increased limit to get more data to filter from
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -417,7 +551,7 @@ class _VendorHomePageState extends State<VendorHomePage> {
             stream: FirebaseFirestore.instance
                 .collection('orders')
                 .where('restaurant', isEqualTo: restaurantName)
-                .limit(10)
+                .limit(20)
                 .snapshots(),
             builder: (context, fallbackSnapshot) {
               if (!fallbackSnapshot.hasData || fallbackSnapshot.data!.docs.isEmpty) {
@@ -445,12 +579,33 @@ class _VendorHomePageState extends State<VendorHomePage> {
   }
 
   Widget _buildOrdersList(List<QueryDocumentSnapshot> docs) {
+    // Filter orders for today only
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+
+    final todaysOrders = docs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final timestamp = data['clientTimestamp'] as Timestamp?;
+
+      if (timestamp != null) {
+        return timestamp.toDate().isAfter(startOfDay);
+      }
+      return false; // Only include orders with timestamps from today
+    }).take(50).toList(); // Take only 50 orders
+
+    if (todaysOrders.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(12.0),
+        child: Text("No orders today yet.", style: TextStyle(color: Colors.grey)),
+      );
+    }
+
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: docs.length,
+      itemCount: todaysOrders.length,
       itemBuilder: (context, index) {
-        final order = docs[index].data() as Map<String, dynamic>;
+        final order = todaysOrders[index].data() as Map<String, dynamic>;
         final foodPrice = order['foodPrice'];
         String priceDisplay = "0";
 
@@ -462,22 +617,9 @@ class _VendorHomePageState extends State<VendorHomePage> {
           }
         }
 
-        // Display items from the items field if available, otherwise fallback to food field
-        String foodDisplay;
-        if (order['items'] != null && order['items'] is List) {
-          final items = List<Map<String, dynamic>>.from(order['items']);
-          if (items.isNotEmpty) {
-            foodDisplay = items.map((item) => '${item['name'] ?? 'Unknown'} x${item['quantity'] ?? 1}').join(', ');
-          } else {
-            foodDisplay = order['food'] ?? 'Food Item';
-          }
-        } else {
-          foodDisplay = order['food'] ?? 'Food Item';
-        }
-
         return ListTile(
           leading: const Icon(Icons.receipt_long, color: AppColors.primary),
-          title: Text(foodDisplay),
+          title: Text(order['food'] ?? 'Food Item'),
           subtitle: Text("UGX $priceDisplay"),
           trailing: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -582,8 +724,36 @@ class _VendorHomePageState extends State<VendorHomePage> {
 
   Widget _sectionTitle(String title) {
     return Padding(
-      padding: const EdgeInsets.all(12.0),
-      child: Text(title, style: AppTextStyles.subHeader),
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(title, style: AppTextStyles.subHeader),
+          GestureDetector(
+            onTap: () {
+              // Navigate to Orders page (Orders tab)
+              setState(() {
+                _currentIndex = 1;
+              });
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.primary, width: 1),
+              ),
+              child: Text(
+                "All",
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
